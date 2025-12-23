@@ -1,0 +1,45 @@
+[
+  {
+    "op":"Softplus",
+    "input_desc":
+    [
+      {
+        "name":"x",
+        "param_type":"required",
+        "format":[
+            "ND", "ND", "ND"
+        ],
+        "type":[
+            "float16", "float", "bfloat16"
+        ]
+      }
+    ],
+    "output_desc":
+    [
+      {
+        "name":"y",
+        "param_type":"required",
+        "format":[
+            "ND", "ND", "ND"
+        ],
+        "type":[
+            "float16", "float", "bfloat16"
+        ]
+      }
+    ],
+    "attr":[
+        {
+            "name":"beta",
+            "param_type":"required",
+            "type":"float",
+            "default_value":1.0
+        },
+        {
+            "name":"threshold",
+            "param_type":"required",
+            "type":"float",
+            "default_value":20.0
+        }
+    ]
+  }
+]
