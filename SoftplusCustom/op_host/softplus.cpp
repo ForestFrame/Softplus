@@ -19,26 +19,25 @@ namespace optiling
         auto socVersion = ascendcPlatform.GetSocVersion();
         if (socVersion == platform_ascendc::SocVersion::ASCEND310B)
         {
-            printf("Soc version: ASCEND310B.");
+            printf("Soc version: ASCEND310B.\n");
         }
         else
         {
-            printf("Unknown version.");
+            printf("Unknown version.\n");
         }
 
         // 获取当前硬件平台的核数
         uint32_t coreNum = ascendcPlatform.GetCoreNum();
-        printf("Core num: %d.", coreNum);
+        printf("Core num: %d.\n", coreNum);
 
         // 获取当前硬件平台AI Core中Cube核数和Vector核数
         uint32_t aicNum = ascendcPlatform.GetCoreNumAic();
         uint32_t aivNum = ascendcPlatform.GetCoreNumAiv();
-        printf("Cube num: %d, vector num: %d.", aicNum, aivNum);
+        printf("Cube num: %d, vector num: %d.\n", aicNum, aivNum);
 
         // 获取硬件平台存储空间的内存大小
         ascendcPlatform.GetCoreMemSize(platform_ascendc::CoreMemType::UB, ub_size);
-        printf("UB size: %d.", (uint32_t)ub_size);
-
+        printf("UB size: %d.\n", (uint32_t)ub_size);
         const gert::StorageShape *x1_shape = context->GetInputShape(0);
         int32_t data_sz = 1;
         for (int i = 0; i < x1_shape->GetStorageShape().GetDimNum(); i++)
@@ -47,6 +46,9 @@ namespace optiling
         context->SetBlockDim(8);
         tiling.SaveToBuffer(context->GetRawTilingData()->GetData(), context->GetRawTilingData()->GetCapacity());
         context->GetRawTilingData()->SetDataSize(tiling.GetDataSize());
+
+        size_t *currentWorkspace = context->GetWorkspaceSizes(1);
+        currentWorkspace[0] = 0;
 
         return ge::GRAPH_SUCCESS;
     }

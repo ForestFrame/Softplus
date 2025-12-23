@@ -1,27 +1,59 @@
-import os
 import sys
-import numpy
+import numpy as np
 
-loss = 1e-3 # 容忍偏差，一般fp16要求绝对误差和相对误差均不超过千分之一
-minimum = 10e-10
+loss = 1e-3        # fp16 / fp32 容忍误差
+minimum = 1e-10    # 防止除零
 
-def verify_result(real_result, golden):
-    with open("output/meta", "r") as fp:
+def verify_result(real_result_path, golden_path):
+    # 1. 从 meta 读取 dtype
+    with open("./scripts/output/meta", "r") as fp:
         dtype_str = fp.readline().strip()
         dtype = eval(dtype_str)
-    real_result = numpy.fromfile(real_result, dtype=dtype) # 从bin文件读取实际运算结果
-    golden = numpy.fromfile(golden, dtype=dtype) # 从bin文件读取预期运算结果
-    print("=" * 50, real_result[:5], golden[:5], "=" * 50, sep='\n', end='\n', file=sys.stderr)
-    result = numpy.abs(real_result - golden) # 计算运算结果和预期结果偏差
-    deno = numpy.maximum(numpy.abs(real_result), numpy.abs(golden))  # 获取最大值并组成新数组
-    result_atol = numpy.less_equal(result, loss) # 计算绝对误差
-    result_rtol = numpy.less_equal(result / numpy.add(deno, minimum), loss) # 计算相对误差
+
+    # 2. 读取结果
+    real_result = np.fromfile(real_result_path, dtype=dtype)
+    golden = np.fromfile(golden_path, dtype=dtype)
+
+    # 3. 基本合法性检查
+    if real_result.size != golden.size:
+        print(f"[ERROR] size mismatch: real={real_result.size}, golden={golden.size}")
+        return False
+
+    print("=" * 60, file=sys.stderr)
+    print("real_result[:5]:", real_result[:5], file=sys.stderr)
+    print("golden[:5]:     ", golden[:5], file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+
+    # 4. 误差计算
+    diff = np.abs(real_result - golden)
+    deno = np.maximum(np.abs(real_result), np.abs(golden))
+
+    result_atol = diff <= loss
+    result_rtol = diff / (deno + minimum) <= loss
+
+    # 5. 判定逻辑（与你现有逻辑一致）
     if not result_rtol.all() and not result_atol.all():
-        if numpy.sum(result_rtol == False) > real_result.size * loss and numpy.sum(result_atol == False) > real_result.size * loss: # 误差超出预期时返回打印错误，返回对比失败
+        atol_fail = np.sum(result_atol == False)
+        rtol_fail = np.sum(result_rtol == False)
+
+        if atol_fail > real_result.size * loss and rtol_fail > real_result.size * loss:
+            max_diff = diff.max()
+            max_rdiff = (diff / (deno + minimum)).max()
             print("[ERROR] result error")
+            print(f"max abs diff : {max_diff}")
+            print(f"max rel diff : {max_rdiff}")
             return False
+
     print("test pass")
     return True
 
-if __name__ == '__main__':
-    verify_result(sys.argv[1],sys.argv[2])
+if __name__ == "__main__":
+    """
+    用法：
+    python3 verify_softplus.py output/result.bin output/golden.bin
+    """
+    if len(sys.argv) != 3:
+        print("Usage: python3 verify_softplus.py real.bin golden.bin")
+        sys.exit(1)
+
+    verify_result(sys.argv[1], sys.argv[2])

@@ -318,7 +318,7 @@ bool OpRunner::RunOp()
     size_t workspaceSize = 0;
 	aclOpExecutor *handle = nullptr;
     
-	auto ret = aclnnSoftplusGetWorkspaceSize(inputTensor_[0], outputTensor_[0], &workspaceSize, &handle);  // ! 有几个输入几个输出就写几个
+	auto ret = aclnnSoftplusGetWorkspaceSize(inputTensor_[0], opDesc_->beta, opDesc_->threshold, outputTensor_[0],&workspaceSize, &handle);  // ! 有几个输入几个输出就写几个
     if (ret != ACL_SUCCESS) {
         (void)aclrtDestroyStream(stream);
         ERROR_LOG("Get Operator Workspace failed. error code is %d", static_cast<int32_t>(ret));

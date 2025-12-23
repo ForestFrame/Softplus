@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# 先安装
-../build_out/custom_opp_ubuntu_aarch64.run
-
-
 export ASCEND_SLOG_PRINT_TO_STDOUT=0
 export ASCEND_GLOBAL_LOG_LEVEL=0
 
@@ -51,7 +47,7 @@ function main {
     # 1. 清除遗留生成文件和日志文件
     rm -rf $HOME/ascend/log/*
     # rm ./input/*.bin
-    rm ./output/*.bin
+    rm ./scripts/output/*.bin
 
     # 2. 生成输入数据和真值数据
     # cd $CURRENT_DIR

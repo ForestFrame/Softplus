@@ -34,39 +34,70 @@ std::vector<int64_t> read_shape(std::fstream &meta) {
     }
     return shape;
 }
+
+float read_para(const std::string &filePath) {
+    std::ifstream file(filePath, std::ios::binary);
+    float para = 0;
+    if (file.is_open()) {
+        file.read(reinterpret_cast<char*>(&para), sizeof(float));
+        file.close();
+    }
+    return para;
+}
+
 OperatorDesc CreateOpDesc() {
-    std::fstream meta("../output/meta");
-    aclDataType dataType;
-    getline(meta, dtype);
-    while (std::isspace(dtype.back())) {
+    std::fstream meta("../scripts/output/meta");
+    if (!meta.is_open()) {
+        throw std::runtime_error("Failed to open meta file");
+    }
+
+    // 1. read dtype
+    std::string dtype;
+    if (!std::getline(meta, dtype)) {
+        throw std::runtime_error("Failed to read dtype");
+    }
+
+    while (!dtype.empty() && std::isspace(dtype.back())) {
         dtype.pop_back();
     }
+
+    aclDataType dataType;
     if (dtype == "torch.int8") {
         dataType = ACL_INT8;
-    }
-    else if (dtype == "torch.int32") {
+    } else if (dtype == "torch.int32") {
         dataType = ACL_INT32;
-    }
-    else if (dtype == "torch.float32") {
+    } else if (dtype == "torch.float32") {
         dataType = ACL_FLOAT;
-    }
-    else if (dtype == "torch.float16") {
+    } else if (dtype == "torch.float16") {
         dataType = ACL_FLOAT16;
+    } else {
+        throw std::runtime_error("Unsupported dtype: " + dtype);
     }
-    std::vector<int64_t> shape_x = read_shape(meta);
-    std::vector<int64_t> shape_output = read_shape(meta);
-    
-    aclFormat format = ACL_FORMAT_ND;
+
+    // 2. read shapes
+    auto shape_x = read_shape(meta);
+    auto shape_output = read_shape(meta);
+
+    if (shape_x.empty() || shape_output.empty()) {
+        throw std::runtime_error("Invalid shape in meta file");
+    }
+
+    // 3. create desc
     OperatorDesc opDesc;
+    opDesc.beta = read_para("../scripts/input/beta.bin");
+    opDesc.threshold = read_para("../scripts/input/threshold.bin");
+
+    aclFormat format = ACL_FORMAT_ND;
     opDesc.AddInputTensorDesc(dataType, shape_x.size(), shape_x.data(), format);
     opDesc.AddOutputTensorDesc(dataType, shape_output.size(), shape_output.data(), format);
+
     return opDesc;
 }
 
 bool SetInputData(OpRunner &runner)
 {
     size_t fileSize = 0;
-    ReadFile("../input/input_x.bin", fileSize, runner.GetInputBuffer<void>(0), runner.GetInputSize(0));
+    ReadFile("../scripts/input/input_x.bin", fileSize, runner.GetInputBuffer<void>(0), runner.GetInputSize(0));
     INFO_LOG("Set input success");
     return true;
 }

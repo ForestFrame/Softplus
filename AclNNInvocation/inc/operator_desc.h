@@ -49,6 +49,8 @@ struct OperatorDesc {
      */
     OperatorDesc &AddOutputTensorDesc(aclDataType dataType, int numDims, const int64_t *dims, aclFormat format);
 
+    float beta;
+    float threshold;
     std::string opType;
     std::vector<aclTensorDesc *> inputDesc;
     std::vector<aclTensorDesc *> outputDesc;
