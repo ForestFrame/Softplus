@@ -46,7 +46,7 @@ float read_para(const std::string &filePath) {
 }
 
 OperatorDesc CreateOpDesc() {
-    std::fstream meta("../scripts/output/meta");
+    std::fstream meta("../output/meta");
     if (!meta.is_open()) {
         throw std::runtime_error("Failed to open meta file");
     }
@@ -84,8 +84,8 @@ OperatorDesc CreateOpDesc() {
 
     // 3. create desc
     OperatorDesc opDesc;
-    opDesc.beta = read_para("../scripts/input/beta.bin");
-    opDesc.threshold = read_para("../scripts/input/threshold.bin");
+    opDesc.beta = read_para("../input/beta.bin");
+    opDesc.threshold = read_para("../input/threshold.bin");
     printf("Read beta: %f, threshold: %f.\n", opDesc.beta,  opDesc.threshold);
 
     aclFormat format = ACL_FORMAT_ND;
@@ -98,7 +98,7 @@ OperatorDesc CreateOpDesc() {
 bool SetInputData(OpRunner &runner)
 {
     size_t fileSize = 0;
-    ReadFile("../scripts/input/input_x.bin", fileSize, runner.GetInputBuffer<void>(0), runner.GetInputSize(0));
+    ReadFile("../input/input_x.bin", fileSize, runner.GetInputBuffer<void>(0), runner.GetInputSize(0));
     INFO_LOG("Set input success");
     return true;
 }

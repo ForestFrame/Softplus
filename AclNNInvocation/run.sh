@@ -50,13 +50,13 @@ function main {
     # rm ./output/*.bin
 
     # 2. 生成输入数据和真值数据
-    # cd $CURRENT_DIR
-    # python3 scripts/gen_data.py
-    # if [ $? -ne 0 ]; then
-    #     echo "ERROR: generate input data failed!"
-    #     return 1
-    # fi
-    # echo "INFO: generate input data success!"
+    cd $CURRENT_DIR
+    python3 scripts/gen_data.py 1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: generate input data failed!"
+        return 1
+    fi
+    echo "INFO: generate input data success!"
 
     # 3. 编译acl可执行文件
     cd $CURRENT_DIR; rm -rf build; mkdir -p build; cd build
@@ -87,7 +87,7 @@ function main {
 
     # 5. 比较真值文件
     cd $CURRENT_DIR
-    ret=`python3 scripts/verify_result.py output/output.bin scripts/output/golden.bin` 
+    ret=`python3 scripts/verify_result.py output/output.bin output/golden.bin` 
     echo $ret
     if [ "x$ret" == "xtest pass" ]; then
         echo ""

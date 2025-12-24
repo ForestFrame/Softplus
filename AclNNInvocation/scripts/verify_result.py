@@ -6,14 +6,15 @@ loss = 1e-3        # fp16 / fp32 容忍误差
 minimum = 1e-10    # 防止除零
 
 TORCH2NP_DTYPE = {
-    torch.float16: np.float16,
-    torch.float32: np.float32,
-    torch.int32:   np.int32,
+    torch.float32:  np.float32,
+    torch.float16:  np.float16,
+    torch.bfloat16: np.float16,
+    torch.int32:    np.int32,
 }
 
 def verify_result(real_result_path, golden_path):
     # 1. 从 meta 读取 dtype
-    with open("./scripts/output/meta", "r") as fp:
+    with open("./output/meta", "r") as fp:
         dtype_str = fp.readline().strip()
         dtype = eval(dtype_str)
     np_dtype = TORCH2NP_DTYPE[dtype]

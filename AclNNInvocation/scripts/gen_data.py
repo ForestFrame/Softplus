@@ -15,8 +15,14 @@ case_data = {
     }
 }
 
+TORCH2NP_DTYPE = {
+    torch.float32:  np.float32,
+    torch.float16:  np.float16,
+    torch.bfloat16: np.float16,
+    torch.int32:    np.int32,
+}
+
 def gen_golden_data_simple(num):
-    print(num)
     caseNmae='case'+str(num)
     
     input_x = case_data[caseNmae]["x"]
@@ -27,15 +33,17 @@ def gen_golden_data_simple(num):
 
     golden = torch.nn.functional.softplus(input_x, beta=beta, threshold=threshold)
 
+    np_dtype = TORCH2NP_DTYPE[dtype]
+
     # 创建目录
-    os.system("mkdir -p input")
-    os.system("mkdir -p output")
+    os.system("mkdir -p ./input")
+    os.system("mkdir -p ./output")
 
     # 写 bin 文件
     input_x.numpy().tofile("./input/input_x.bin")
 
-    np.array(beta, dtype=np.float32).tofile("./input/beta.bin")
-    np.array(threshold, dtype=np.float32).tofile("./input/threshold.bin")
+    np.array(beta, dtype=np_dtype).tofile("./input/beta.bin")
+    np.array(threshold, dtype=np_dtype).tofile("./input/threshold.bin")
     golden.numpy().tofile("./output/golden.bin")
 
     # 写 meta 信息
