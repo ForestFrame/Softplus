@@ -47,7 +47,7 @@ function main {
     # 1. 清除遗留生成文件和日志文件
     rm -rf $HOME/ascend/log/*
     # rm ./input/*.bin
-    rm ./scripts/output/*.bin
+    # rm ./output/*.bin
 
     # 2. 生成输入数据和真值数据
     # cd $CURRENT_DIR
@@ -87,7 +87,7 @@ function main {
 
     # 5. 比较真值文件
     cd $CURRENT_DIR
-    ret=`python3 scripts/verify_result.py output/output.bin output/golden.bin` 
+    ret=`python3 scripts/verify_result.py output/output.bin scripts/output/golden.bin` 
     echo $ret
     if [ "x$ret" == "xtest pass" ]; then
         echo ""

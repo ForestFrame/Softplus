@@ -54,14 +54,37 @@ private:
         AscendC::DataCopy(xLocal, xGm[progress * this->tilingDataNum], dataNum);
         inQueueX.EnQue(xLocal);
     }
+
     __aicore__ inline void Compute(int32_t progress, uint32_t dataNum)
     {
+        int16_t scalar = 1;
         AscendC::LocalTensor<DTYPE_X> xLocal = inQueueX.DeQue<DTYPE_X>();
         AscendC::LocalTensor<DTYPE_Y> yLocal = outQueueY.AllocTensor<DTYPE_Y>();
 
+        printf("Before Softplus computation, xLocal data:\n");
+        AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
         // Softplus计算部分
-        if()
+        // 不分段计算Softplus：y = ln(1 + exp(beta * x)) / beta
+        AscendC::Muls(xLocal, xLocal, static_cast<DTYPE_X>(beta), dataNum);
+        printf("After Muls beta, xLocal data:\n");
+        AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
 
+        AscendC::Exp(xLocal, xLocal, dataNum);
+        printf("After Exp, xLocal data:\n");
+        AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+
+        AscendC::Adds(xLocal, xLocal, static_cast<DTYPE_X>(scalar), dataNum);
+        printf("After Adds 1, xLocal data:\n");
+        AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+
+        AscendC::Ln(xLocal, xLocal, dataNum);
+        printf("After Ln, xLocal data:\n");
+        AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+
+        AscendC::Muls(yLocal, xLocal, static_cast<DTYPE_Y>(1.0f / beta), dataNum);
+        printf("After Muls 1/beta, yLocal data:\n");
+        AscendC::DumpTensor(yLocal, 0, (uint32_t)128); 
+        
         outQueueY.EnQue<DTYPE_Y>(yLocal);
         inQueueX.FreeTensor(xLocal);
     }
