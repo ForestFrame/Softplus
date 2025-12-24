@@ -9,9 +9,9 @@ dtype = torch.float32
 
 case_data = {
     'case1': {
-        'x': (torch.rand(32) * 100 - 50).to(dtype),
-        'beta': 1,
-        'threshold': 20
+        'x': (torch.rand(6400) * 100 - 50).to(dtype),
+        'beta': 1.0,
+        'threshold': 20.0
     }
 }
 
@@ -34,8 +34,8 @@ def gen_golden_data_simple(num):
     # 写 bin 文件
     input_x.numpy().tofile("./input/input_x.bin")
 
-    np.array(beta, dtype=np.int8).tofile("./input/beta.bin")
-    np.array(threshold, dtype=np.int8).tofile("./input/threshold.bin")
+    np.array(beta, dtype=np.float32).tofile("./input/beta.bin")
+    np.array(threshold, dtype=np.float32).tofile("./input/threshold.bin")
     golden.numpy().tofile("./output/golden.bin")
 
     # 写 meta 信息

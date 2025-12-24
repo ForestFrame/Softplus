@@ -86,6 +86,7 @@ OperatorDesc CreateOpDesc() {
     OperatorDesc opDesc;
     opDesc.beta = read_para("../scripts/input/beta.bin");
     opDesc.threshold = read_para("../scripts/input/threshold.bin");
+    printf("Read beta: %f, threshold: %f.\n", opDesc.beta,  opDesc.threshold);
 
     aclFormat format = ACL_FORMAT_ND;
     opDesc.AddInputTensorDesc(dataType, shape_x.size(), shape_x.data(), format);

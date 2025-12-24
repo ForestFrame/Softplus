@@ -1,6 +1,106 @@
 #include "kernel_operator.h"
 
-extern "C" __global__ __aicore__ void softplus(GM_ADDR x, GM_ADDR y, GM_ADDR workspace, GM_ADDR tiling) {
+using namespace AscendC;
+
+#define PING_PONG_BUFFER_NUM 2
+
+class KernelSoftplus
+{
+public:
+    __aicore__ inline KernelSoftplus() {}
+    __aicore__ inline void Init(GM_ADDR x, GM_ADDR y, uint32_t totalDataNum,
+                                uint32_t loop_num,
+                                uint32_t tiling_block_num,
+                                uint32_t tiling_data_num,
+                                uint32_t tail_data_num,
+                                float beta,
+                                float threshold)
+    {
+        this->totalDataNum = totalDataNum;
+        this->loopNum = loop_num;
+        this->tilingBlockNum = tiling_block_num;
+        this->tilingDataNum = tiling_data_num;
+        this->tailDataNum = tail_data_num;
+        this->beta = beta;
+        this->threshold = threshold;
+
+        xGm.SetGlobalBuffer((__gm__ DTYPE_X *)x + this->tilingDataNum * AscendC::GetBlockIdx(), this->tilingDataNum);
+        yGm.SetGlobalBuffer((__gm__ DTYPE_Y *)y + this->tilingDataNum * AscendC::GetBlockIdx(), this->tilingDataNum);
+        pipe.InitBuffer(inQueueX, PING_PONG_BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_X));
+        pipe.InitBuffer(outQueueY, PING_PONG_BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_Y));
+    }
+    __aicore__ inline void Process()
+    {
+        int32_t loopCount = this->loopNum;
+        printf("Loop count: %d.\n", loopCount);
+        for (int32_t i = 0; i < loopCount; i++)
+        {
+            CopyIn(i, this->tilingDataNum);
+            Compute(i, this->tilingDataNum);
+            CopyOut(i, this->tilingDataNum);
+        }
+        if (this->tailDataNum != 0)
+        {
+            CopyIn(loopCount, this->tailDataNum);
+            Compute(loopCount, this->tailDataNum);
+            CopyOut(loopCount, this->tailDataNum);
+        }
+    }
+
+private:
+    __aicore__ inline void CopyIn(int32_t progress, uint32_t dataNum)
+    {
+        AscendC::LocalTensor<DTYPE_X> xLocal = inQueueX.AllocTensor<DTYPE_X>();
+        AscendC::DataCopy(xLocal, xGm[progress * this->tilingDataNum], dataNum);
+        inQueueX.EnQue(xLocal);
+    }
+    __aicore__ inline void Compute(int32_t progress, uint32_t dataNum)
+    {
+        AscendC::LocalTensor<DTYPE_X> xLocal = inQueueX.DeQue<DTYPE_X>();
+        AscendC::LocalTensor<DTYPE_Y> yLocal = outQueueY.AllocTensor<DTYPE_Y>();
+
+        // Softplus计算部分
+
+        outQueueY.EnQue<DTYPE_Y>(yLocal);
+        inQueueX.FreeTensor(xLocal);
+    }
+
+    __aicore__ inline void CopyOut(int32_t progress, uint32_t dataNum)
+    {
+        AscendC::LocalTensor<DTYPE_Y> yLocal = outQueueY.DeQue<DTYPE_Y>();
+        AscendC::DataCopy(yGm[progress * this->tilingDataNum], yLocal, dataNum);
+        outQueueY.FreeTensor(yLocal);
+    }
+
+private:
+    TPipe pipe;
+    // create queue for input, in this case depth is equal to buffer num
+    AscendC::TQue<AscendC::TPosition::VECIN, PING_PONG_BUFFER_NUM> inQueueX;
+    // create queue for output, in this case depth is equal to buffer num
+    AscendC::TQue<AscendC::TPosition::VECOUT, PING_PONG_BUFFER_NUM> outQueueY;
+    AscendC::GlobalTensor<DTYPE_X> xGm;
+    AscendC::GlobalTensor<DTYPE_Y> yGm;
+
+    uint32_t totalDataNum;
+    uint32_t loopNum;
+    uint32_t alignNum;
+    uint32_t tilingBlockNum;
+    uint32_t tilingDataNum;
+    uint32_t tailDataNum;
+    float beta;
+    float threshold;
+};
+
+extern "C" __global__ __aicore__ void softplus(GM_ADDR x, GM_ADDR y, GM_ADDR workspace, GM_ADDR tiling)
+{
     GET_TILING_DATA(tiling_data, tiling);
-    // TODO: user kernel impl
+    KernelSoftplus op;
+    op.Init(x, y, tiling_data.total_data_num,
+            tiling_data.loop_num,
+            tiling_data.tiling_block_num,
+            tiling_data.tiling_data_num,
+            tiling_data.tail_data_num,
+            tiling_data.beta,
+            tiling_data.threshold);
+    op.Process();
 }
