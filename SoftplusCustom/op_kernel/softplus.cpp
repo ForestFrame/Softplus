@@ -8,7 +8,7 @@ class KernelSoftplus
 {
 public:
     __aicore__ inline KernelSoftplus() {}
-    __aicore__ inline void Init(GM_ADDR x, GM_ADDR y, uint32_t totalDataNum,
+    __aicore__ inline void Init(GM_ADDR x, GM_ADDR y, uint32_t total_data_num,
                                 uint32_t loop_num,
                                 uint32_t tiling_block_num,
                                 uint32_t tiling_data_num,
@@ -16,7 +16,7 @@ public:
                                 float beta,
                                 float threshold)
     {
-        this->totalDataNum = totalDataNum;
+        this->totalDataNum = total_data_num;
         this->loopNum = loop_num;
         this->tilingBlockNum = tiling_block_num;
         this->tilingDataNum = tiling_data_num;
