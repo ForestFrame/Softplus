@@ -9,10 +9,25 @@ dtype = torch.float32
 
 case_data = {
     'case1': {
-        'x': (torch.rand(6400) * 100 - 50).to(dtype),
+        'x': (torch.rand(32) * 10).to(dtype),
         'beta': 1.0,
         'threshold': 20.0
-    }
+    },
+    'case2': {
+        'x': (torch.rand(6400) * 10).to(dtype),
+        'beta': 1.0,
+        'threshold': 20.0
+    },
+    'case3': {
+        'x': (torch.rand(32) * 1000 + 9000).to(dtype),
+        'beta': 1.0,
+        'threshold': 20.0
+    },
+    'case4': {
+        'x': (torch.rand(32) * 100).to(dtype),
+        'beta': 5.0,
+        'threshold': 20.0
+    },
 }
 
 TORCH2NP_DTYPE = {
