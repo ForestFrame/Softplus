@@ -4,8 +4,8 @@
 #include "tiling/platform/platform_ascendc.h"
 
 #define BLOCK_SIZE 32
-#define PING_PONG_BUFFER_NUM 2
-#define NUM 5
+#define BUFFER_NUM 2
+#define UB_PART_NUM 5
 
 namespace optiling
 {
@@ -13,54 +13,107 @@ namespace optiling
     {
 
         SoftplusTilingData tiling;
-        uint64_t ub_size;
+        uint64_t ubSize = 0;
+
+        uint32_t dataTypeSize;     // 数据类型大小，单位字节
+        uint32_t totalDataNum = 0; // 输入数据元素总数
+        uint32_t totalSize = 0;    // 输入字节数
+        uint32_t totalBlocks = 0;  // 输入数据块数
+
+        uint32_t ubPartNum = 0;
+        uint32_t ubPartSize = 0;
+        uint32_t ubPartBlockNum = 0;
+        uint32_t ubPartDataNum = 0;
+
+        uint32_t everyCoreInputBlockNum = 0;
+        uint32_t tailBlockNum = 0;
+
+        uint32_t bigCoreNum = 0;
+        uint32_t bigCoreDataNum = 0;
+        uint32_t bigCoreBlockNum = 0;
+        uint32_t bigCoreTailBlockNum = 0;
+        uint32_t bigCoreTailDataNum = 0;
+        uint32_t bigCoreLoopNum = 0;
+
+        uint32_t smallCoreNum = 0;
+        uint32_t smallCoreDataNum = 0;
+        uint32_t smallCoreBlockNum = 0;
+        uint32_t smallCoreTailBlockNum = 0;
+        uint32_t smallCoreTailDataNum = 0;
+        uint32_t smallCoreLoopNum = 0;
+
+        uint32_t tilingBlockNum = 0;
 
         auto ascendcPlatform = platform_ascendc::PlatformAscendC(context->GetPlatformInfo());
-
-        // 获取当前硬件平台版本型号
-        auto socVersion = ascendcPlatform.GetSocVersion();
 
         // 获取当前硬件平台的核数
         uint32_t coreNum = ascendcPlatform.GetCoreNum();
 
-        // 获取当前硬件平台AI Core中Cube核数和Vector核数
-        uint32_t aicNum = ascendcPlatform.GetCoreNumAic();
-        uint32_t aivNum = ascendcPlatform.GetCoreNumAiv();
-
         // 获取硬件平台存储空间的内存大小
-        ascendcPlatform.GetCoreMemSize(platform_ascendc::CoreMemType::UB, ub_size);
+        ascendcPlatform.GetCoreMemSize(platform_ascendc::CoreMemType::UB, ubSize);
 
-        // 计算tiling参数
-        auto data_type = context->GetInputDesc(0)->GetDataType();
-        uint32_t sizeofdatatype;
-        if (data_type == ge::DT_INT8)
+        // 计算类型大小
+        auto dataType = context->GetInputDesc(0)->GetDataType();
+        if (dataType == ge::DT_FLOAT16 || dataType == ge::DT_BF16)
         {
-            sizeofdatatype = 1;
-        }
-        else if (data_type == ge::DT_FLOAT16 || data_type == ge::DT_BF16)
-        {
-            sizeofdatatype = 2;
+            dataTypeSize = 2;
         }
         else
         {
-            sizeofdatatype = 4;
+            dataTypeSize = 4;
         }
-        uint32_t align_num = BLOCK_SIZE / sizeofdatatype;
-        uint32_t tiling_block_num = ((ub_size) / BLOCK_SIZE / PING_PONG_BUFFER_NUM) / NUM;  // 单次tiling可处理的数据块数
-        uint32_t tiling_data_num = tiling_block_num * align_num;  // 单次tiling可处理的数据元素数
 
-        // 计算总的数据元素数、需要进行的tiling次数以及尾数据元素数
-        const gert::StorageShape *x1_shape = context->GetInputShape(0);
-        int32_t total_data_num = 1;
-        for (int i = 0; i < x1_shape->GetStorageShape().GetDimNum(); i++)
-            total_data_num *= x1_shape->GetStorageShape().GetDim(i);
-        uint32_t tiling_loop_num = total_data_num / tiling_data_num;  // 需要进行的tiling次数
-        uint32_t tiling_tail_data_num = total_data_num % tiling_data_num;  // 最后一次tiling处理的数据元素数
+        // 计算总数据元素数，总字节数，总数据块数
+        totalDataNum = context->GetInputShape(0)->GetStorageShape().GetShapeSize();
 
-        printf("Total data num: %d.\n", total_data_num);
-        printf("Tiling loop num: %d.\n", tiling_loop_num);
-        printf("Tiling data num: %d.\n", tiling_data_num);
-        printf("Tiling tail data num: %d.\n", tiling_tail_data_num);
+        // printf("Softplus total data num: %d\n", totalDataNum);
+        
+        totalSize = totalDataNum * dataTypeSize;
+        totalSize = ((totalSize + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE; // 总字节数向上对齐到BLOCK_SIZE的整数倍
+        totalBlocks = totalSize / BLOCK_SIZE;
+
+        // 计算ub分区大小
+        ubPartSize = ubSize / BUFFER_NUM / UB_PART_NUM; // ub分区大小，单位字节
+        ubPartBlockNum = ubPartSize / BLOCK_SIZE;       // ub分区数据块数
+        ubPartDataNum = (ubPartBlockNum * BLOCK_SIZE) / dataTypeSize;
+
+        // 计算核数
+        if(ubPartDataNum >= totalDataNum)
+        {
+            coreNum = 1;
+        }
+        else
+        {
+            coreNum = (totalSize / BLOCK_SIZE > coreNum) ? coreNum : (totalSize / BLOCK_SIZE); // 核数不能超过总数据块数
+        }
+
+        // 计算每个核处理的数据块数和尾数据块数
+        everyCoreInputBlockNum = totalSize / BLOCK_SIZE / coreNum;
+        tailBlockNum = (totalSize / BLOCK_SIZE) % coreNum;
+
+        // 计算小核处理的数据块数和数据元素数
+        smallCoreDataNum = everyCoreInputBlockNum * BLOCK_SIZE / dataTypeSize;
+        smallCoreLoopNum = smallCoreDataNum / ubPartDataNum;
+        smallCoreLoopNum = (everyCoreInputBlockNum % ubPartBlockNum == 0) ? smallCoreLoopNum : (smallCoreLoopNum + 1);
+
+        smallCoreTailDataNum = smallCoreDataNum - ubPartDataNum * (smallCoreLoopNum - 1);
+        smallCoreTailDataNum = smallCoreTailDataNum == 0 ? ubPartDataNum : smallCoreTailDataNum;
+
+        // 计算大核处理的数据块数和数据元素数
+        if(tailBlockNum != 0)
+        {
+            everyCoreInputBlockNum += 1;
+            bigCoreDataNum = everyCoreInputBlockNum * BLOCK_SIZE / dataTypeSize;
+            bigCoreLoopNum = bigCoreDataNum / ubPartDataNum;
+            bigCoreLoopNum = (everyCoreInputBlockNum % ubPartBlockNum == 0) ? bigCoreLoopNum : (bigCoreLoopNum + 1);
+            bigCoreTailDataNum = bigCoreDataNum - ubPartDataNum * (bigCoreLoopNum - 1);
+            bigCoreTailDataNum = bigCoreTailDataNum == 0 ? ubPartDataNum : bigCoreTailDataNum;
+            context->SetTilingKey(1);
+        }
+        else
+        {
+            context->SetTilingKey(0);
+        }
 
         // 获取算子属性
         const gert::RuntimeAttrs *attrs = context->GetAttrs();
@@ -71,14 +124,18 @@ namespace optiling
         float threshold = *threshold_ptr;
 
         // 设置tiling参数
-        tiling.set_total_data_num(total_data_num);
-
-        tiling.set_tiling_loop_num(tiling_loop_num);
-        tiling.set_tiling_data_num(tiling_data_num);
-        tiling.set_tiling_tail_data_num(tiling_tail_data_num);
+        tiling.set_smallCoreDataNum(smallCoreDataNum);
+        tiling.set_bigCoreDataNum(bigCoreDataNum);
+        tiling.set_ubPartDataNum(ubPartDataNum);
+        tiling.set_smallCoreTailDataNum(smallCoreTailDataNum);
+        tiling.set_bigCoreTailDataNum(bigCoreTailDataNum);
+        tiling.set_smallCoreLoopNum(smallCoreLoopNum);
+        tiling.set_bigCoreLoopNum(bigCoreLoopNum);
+        tiling.set_tailBlockNum(tailBlockNum);
 
         tiling.set_beta(beta);
         tiling.set_threshold(threshold);
+
         context->SetBlockDim(coreNum);
         tiling.SaveToBuffer(context->GetRawTilingData()->GetData(), context->GetRawTilingData()->GetCapacity());
         context->GetRawTilingData()->SetDataSize(tiling.GetDataSize());

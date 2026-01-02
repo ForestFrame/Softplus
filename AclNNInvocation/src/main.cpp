@@ -87,6 +87,10 @@ OperatorDesc CreateOpDesc() {
     opDesc.beta = read_para("../input/beta.bin");
     opDesc.threshold = read_para("../input/threshold.bin");
 
+    printf("Softplus op desc read from file.\n");
+    printf("Softplus beta: %f.\n", opDesc.beta);
+    printf("Softplus threshold: %f.\n", opDesc.threshold);
+
     aclFormat format = ACL_FORMAT_ND;
     opDesc.AddInputTensorDesc(dataType, shape_x.size(), shape_x.data(), format);
     opDesc.AddOutputTensorDesc(dataType, shape_output.size(), shape_output.data(), format);
