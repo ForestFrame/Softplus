@@ -21,19 +21,19 @@ case_data = {
     },
     # 变输入数据量
     'case3': {
-        'x': (torch.rand(6400) * 90).to(dtype),
+        'x': (torch.rand(6400 * 6400) * 90).to(dtype),
         'beta': 1.0,
         'threshold': 20.0
     },
     # 变beta值
     'case4': {
-        'x': (torch.rand(6400) * 90).to(dtype),
+        'x': (torch.rand(6400 * 6400) * 90).to(dtype),
         'beta': 2.0,
         'threshold': 20.0
     },
     # 变threshold值
     'case5': {
-        'x': (torch.rand(6400) * 90).to(dtype),
+        'x': (torch.rand(6400 * 6400) * 90).to(dtype),
         'beta': 2.0,
         'threshold': 10.0
     },

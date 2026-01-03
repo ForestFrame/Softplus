@@ -129,18 +129,18 @@ private:
             //     AscendC::DumpTensor(temp1, 0, 128);
             // }
 
-            AscendC::CompareScalar(mask, temp1, static_cast<float32_t>(this->threshold), AscendC::CMPMODE::GT, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After compare with threshold %f:\n", this->threshold);
-            //     AscendC::DumpTensor(mask, 0, 128);
-            // }
-
             AscendC::Muls(temp2, temp1, static_cast<float32_t>(this->beta), dataNum);
             // if (progress == 0)
             // {
             //     printf("After temp1 multiply beta %f:\n", this->beta);
             //     AscendC::DumpTensor(temp2, 0, 128);
+            // }
+
+            AscendC::CompareScalar(mask, temp2, static_cast<float32_t>(this->threshold), AscendC::CMPMODE::GT, dataNum);
+            // if (progress == 0)
+            // {
+            //     printf("After compare with threshold %f:\n", this->threshold);
+            //     AscendC::DumpTensor(mask, 0, 128);
             // }
 
             AscendC::Exp(temp2, temp2, dataNum);
@@ -189,18 +189,18 @@ private:
         {
             auto temp2 = calBuf2.Get<TYPE_X>();
 
-            AscendC::CompareScalar(mask, xLocal, static_cast<TYPE_X>(this->threshold), AscendC::CMPMODE::GT, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After compare with threshold %f:\n", this->threshold);
-            //     AscendC::DumpTensor(mask, 0, 128);
-            // }
-
             AscendC::Muls(temp2, xLocal, static_cast<TYPE_X>(beta), dataNum);
             // if (progress == 0)
             // {
             //     printf("After xLocal multiply beta %f:\n", this->beta);
             //     AscendC::DumpTensor(temp2, 0, 128);
+            // }
+
+            AscendC::CompareScalar(mask, temp2, static_cast<TYPE_X>(this->threshold), AscendC::CMPMODE::GT, dataNum);
+            // if (progress == 0)
+            // {
+            //     printf("After compare with threshold %f:\n", this->threshold);
+            //     AscendC::DumpTensor(mask, 0, 128);
             // }
 
             AscendC::Exp(temp2, temp2, dataNum);
