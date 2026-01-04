@@ -8,19 +8,20 @@ class KernelSoftplus
 {
 public:
     __aicore__ inline KernelSoftplus() {}
-    __aicore__ inline void Init(GM_ADDR x, GM_ADDR y, uint32_t total_data_num,
-                                uint32_t loop_num,
-                                uint32_t tiling_block_num,
-                                uint32_t tiling_data_num,
-                                uint32_t tail_data_num,
+    __aicore__ inline void Init(GM_ADDR x, GM_ADDR y, 
+                                uint32_t totalDataNum,
+                                uint32_t loopNum,
+                                uint32_t tilingDataNum,
+                                uint32_t tailDataNum,
+
                                 float beta,
                                 float threshold)
     {
-        this->totalDataNum = total_data_num;
-        this->loopNum = loop_num;
-        this->tilingBlockNum = tiling_block_num;
-        this->tilingDataNum = tiling_data_num;
-        this->tailDataNum = tail_data_num;
+        this->totalDataNum = totalDataNum;
+        this->loopNum = loopNum;
+        this->tilingDataNum = tilingDataNum;
+        this->tailDataNum = tailDataNum;
+
         this->beta = beta;
         this->threshold = threshold;
 
@@ -28,7 +29,7 @@ public:
         yGm.SetGlobalBuffer((__gm__ DTYPE_Y *)y + this->tilingDataNum * AscendC::GetBlockIdx(), this->tilingDataNum);
         pipe.InitBuffer(inQueueX, PING_PONG_BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_X));
         pipe.InitBuffer(outQueueY, PING_PONG_BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_Y));
-        pipe.InitBuffer(calBuf, this->tilingDataNum * sizeof(float));
+        pipe.InitBuffer(calBuf, this->tilingDataNum * sizeof(float32_t));
     }
     __aicore__ inline void Process()
     {
@@ -63,15 +64,16 @@ private:
         AscendC::LocalTensor<DTYPE_Y> yLocal = outQueueY.AllocTensor<DTYPE_Y>();
 
         // printf("Before Softplus computation, xLocal data:\n");
+        // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
 
-        if (std::is_same_v<DTYPE_X, bfloat16_t> || std::is_same_v<DTYPE_X, float16_t>)
+        if constexpr (std::is_same_v<DTYPE_X, bfloat16_t> || std::is_same_v<DTYPE_X, float16_t>)
         {
-            AscendC::LocalTensor<float> tempTensor = calBuf.Get<float>(dataNum);
+            auto tempTensor = calBuf.Get<float32_t>(dataNum);
+        
             AscendC::Cast(tempTensor, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
-
+            // printf("After Cast to float32, tempTensor data:\n");
             // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
-            // Softplus计算部分
-            // 不分段计算Softplus：y = ln(1 + exp(beta * x)) / beta
+
             AscendC::Muls(tempTensor, tempTensor, static_cast<float>(beta), dataNum);
             // printf("After Muls beta, tempTensor data:\n");
             // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
@@ -97,8 +99,7 @@ private:
         else
         {
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-            // Softplus计算部分
-            // 不分段计算Softplus：y = ln(1 + exp(beta * x)) / beta
+
             AscendC::Muls(xLocal, xLocal, static_cast<DTYPE_X>(beta), dataNum);
             // printf("After Muls beta, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
@@ -142,10 +143,9 @@ private:
 
     uint32_t totalDataNum;
     uint32_t loopNum;
-    uint32_t alignNum;
-    uint32_t tilingBlockNum;
     uint32_t tilingDataNum;
     uint32_t tailDataNum;
+
     float beta;
     float threshold;
 };
@@ -154,11 +154,12 @@ extern "C" __global__ __aicore__ void softplus(GM_ADDR x, GM_ADDR y, GM_ADDR wor
 {
     GET_TILING_DATA(tiling_data, tiling);
     KernelSoftplus op;
-    op.Init(x, y, tiling_data.total_data_num,
-            tiling_data.loop_num,
-            tiling_data.tiling_block_num,
-            tiling_data.tiling_data_num,
-            tiling_data.tail_data_num,
+    op.Init(x, y, 
+            tiling_data.totalDataNum,
+            tiling_data.loopNum,
+            tiling_data.tilingDataNum,
+            tiling_data.tailDataNum,
+
             tiling_data.beta,
             tiling_data.threshold);
     op.Process();

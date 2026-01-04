@@ -2,13 +2,14 @@ import sys
 import torch
 import numpy as np
 
-loss = 1e-3        # fp16 / fp32 容忍误差
+# loss = 1e-3        # fp16 容忍误差
+loss = 1e-6        # fp32 容忍误差
 minimum = 1e-10    # 防止除零
 
 TORCH2NP_DTYPE = {
     torch.float32:  np.float32,
     torch.float16:  np.float16,
-    torch.bfloat16: np.float16,
+    torch.bfloat16: np.float32,
     torch.int32:    np.int32,
 }
 

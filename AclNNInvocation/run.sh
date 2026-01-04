@@ -51,7 +51,7 @@ function main {
 
     # 2. 生成输入数据和真值数据
     cd $CURRENT_DIR
-    python3 scripts/gen_data.py 1
+    python3 scripts/gen_data.py 1 #! 测试样例选择
     if [ $? -ne 0 ]; then
         echo "ERROR: generate input data failed!"
         return 1

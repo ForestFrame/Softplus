@@ -5,7 +5,7 @@
 set -e  # 只要有命令出错就退出
 set -o pipefail
 
-BUILD_SCRIPT="/home/HwHiAiUser/study/all-prj/operator/Softplus/SoftplusCustom/build.sh"
+BUILD_SCRIPT="./SoftplusCustom/build.sh"
 RUN_PACKAGE="./SoftplusCustom/build_out/custom_opp_ubuntu_aarch64.run"
 RUN_SCRIPT_DIR="./AclNNInvocation"
 RUN_SCRIPT="$RUN_SCRIPT_DIR/run.sh"
