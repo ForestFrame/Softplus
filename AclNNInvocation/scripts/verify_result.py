@@ -9,7 +9,7 @@ minimum = 1e-10    # 防止除零
 TORCH2NP_DTYPE = {
     torch.float32:  np.float32,
     torch.float16:  np.float16,
-    torch.bfloat16: np.float16,
+    torch.bfloat16: np.float32,
     torch.int32:    np.int32,
 }
 
