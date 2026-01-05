@@ -29,7 +29,8 @@ public:
         yGm.SetGlobalBuffer((__gm__ DTYPE_Y *)y + this->tilingDataNum * AscendC::GetBlockIdx(), this->tilingDataNum);
         pipe.InitBuffer(inQueueX, PING_PONG_BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_X));
         pipe.InitBuffer(outQueueY, PING_PONG_BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_Y));
-        pipe.InitBuffer(calBuf, this->tilingDataNum * sizeof(float32_t));
+        pipe.InitBuffer(calBuf1, this->tilingDataNum * sizeof(float32_t));
+        pipe.InitBuffer(calBuf2, this->tilingDataNum * sizeof(float32_t));
     }
     __aicore__ inline void Process()
     {
@@ -63,45 +64,69 @@ private:
         AscendC::LocalTensor<DTYPE_X> xLocal = inQueueX.DeQue<DTYPE_X>();
         AscendC::LocalTensor<DTYPE_Y> yLocal = outQueueY.AllocTensor<DTYPE_Y>();
 
-        // printf("Before Softplus computation, xLocal data:\n");
-        // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+        printf("Before Softplus computation, xLocal data:\n");
+        AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+        printf("\n");
 
         if constexpr (std::is_same_v<DTYPE_X, bfloat16_t> || std::is_same_v<DTYPE_X, float16_t>)
         {
-            auto tempTensor = calBuf.Get<float32_t>(dataNum);
+            auto res = calBuf1.Get<float32_t>(dataNum);
+            auto beta_x = calBuf2.Get<float32_t>(dataNum);
         
-            AscendC::Cast(tempTensor, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
-            // printf("After Cast to float32, tempTensor data:\n");
-            // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
+            AscendC::Cast(res, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
+            printf("After Cast to float32, res data:\n");
+            AscendC::DumpTensor(res, 0, (uint32_t)128);
+            printf("\n");
 
-            AscendC::Muls(tempTensor, tempTensor, static_cast<float>(beta), dataNum);
-            // printf("After Muls beta, tempTensor data:\n");
-            // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
+            AscendC::Muls(beta_x, res, static_cast<float>(beta), dataNum);
+            printf("After Muls beta, beta_x data:\n");
+            AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
+            printf("\n");
 
-            AscendC::Exp(tempTensor, tempTensor, dataNum);
-            // printf("After Exp, tempTensor data:\n");
-            // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
+            AscendC::Muls(res, beta_x, static_cast<float>(scalar * (-1.0f)), dataNum);
+            printf("After Muls -1, res data:\n");
+            AscendC::DumpTensor(res, 0, (uint32_t)128);
+            printf("\n");
 
-            AscendC::Adds(tempTensor, tempTensor, static_cast<float>(scalar), dataNum);
-            // printf("After Adds 1, tempTensor data:\n");
-            // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
+            AscendC::Exp(res, res, dataNum);
+            printf("After Exp, res data:\n");
+            AscendC::DumpTensor(res, 0, (uint32_t)128);
+            printf("\n");
 
-            AscendC::Ln(tempTensor, tempTensor, dataNum);
-            // printf("After Ln, tempTensor data:\n");
-            // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
+            AscendC::Adds(res, res, static_cast<float>(scalar), dataNum);
+            printf("After Adds 1, res data:\n");
+            AscendC::DumpTensor(res, 0, (uint32_t)128);
+            printf("\n");
 
-            AscendC::Muls(tempTensor, tempTensor, static_cast<float>(1.0f / beta), dataNum);
-            // printf("After Muls 1/beta, tempTensor data:\n");
-            // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
+            AscendC::Ln(res, res, dataNum);
+            printf("After Ln, res data:\n");
+            AscendC::DumpTensor(res, 0, (uint32_t)128);
+            printf("\n");
 
-            AscendC::Cast(yLocal, tempTensor, AscendC::RoundMode::CAST_NONE, dataNum);
+            AscendC::Add(res, beta_x, res, dataNum);
+            printf("After Adds βx, res data:\n");
+            AscendC::DumpTensor(res, 0, (uint32_t)128);
+            printf("\n");
+
+            AscendC::Muls(res, res, static_cast<float>(1.0f / beta), dataNum);
+            printf("After Muls 1/beta, res data:\n");
+            AscendC::DumpTensor(res, 0, (uint32_t)128);
+            printf("\n");
+
+            AscendC::Cast(yLocal, res, AscendC::RoundMode::CAST_NONE, dataNum);
         }
         else
         {
+            auto beta_x = calBuf2.Get<DTYPE_X>(dataNum);
+
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
 
-            AscendC::Muls(xLocal, xLocal, static_cast<DTYPE_X>(beta), dataNum);
-            // printf("After Muls beta, xLocal data:\n");
+            AscendC::Muls(beta_x, xLocal, static_cast<DTYPE_X>(beta), dataNum);
+            // printf("After Muls beta, beta_x data:\n");
+            // AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
+
+            AscendC::Muls(xLocal, beta_x, static_cast<DTYPE_X>(scalar * (-1.0f)), dataNum);
+            // printf("After Muls -1, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
 
             AscendC::Exp(xLocal, xLocal, dataNum);
@@ -114,6 +139,10 @@ private:
 
             AscendC::Ln(xLocal, xLocal, dataNum);
             // printf("After Ln, xLocal data:\n");
+            // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+
+            AscendC::Add(xLocal, beta_x, xLocal, dataNum);
+            // printf("After Adds βx, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
 
             AscendC::Muls(yLocal, xLocal, static_cast<DTYPE_Y>(1.0f / beta), dataNum);
@@ -137,7 +166,7 @@ private:
     AscendC::TQue<AscendC::TPosition::VECIN, PING_PONG_BUFFER_NUM> inQueueX;
     // create queue for output, in this case depth is equal to buffer num
     AscendC::TQue<AscendC::TPosition::VECOUT, PING_PONG_BUFFER_NUM> outQueueY;
-    AscendC::TBuf<AscendC::QuePosition::VECCALC> calBuf;
+    AscendC::TBuf<AscendC::QuePosition::VECCALC> calBuf1, calBuf2;
     AscendC::GlobalTensor<DTYPE_X> xGm;
     AscendC::GlobalTensor<DTYPE_Y> yGm;
 
