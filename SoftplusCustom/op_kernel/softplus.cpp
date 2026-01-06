@@ -2,33 +2,53 @@
 
 using namespace AscendC;
 
-#define PING_PONG_BUFFER_NUM 2
+#define BUFFER_NUM 2
 
 class KernelSoftplus
 {
 public:
     __aicore__ inline KernelSoftplus() {}
     __aicore__ inline void Init(GM_ADDR x, GM_ADDR y, 
-                                uint32_t totalDataNum,
-                                uint32_t loopNum,
                                 uint32_t tilingDataNum,
-                                uint32_t tailDataNum,
+
+                                uint32_t bigCoreNum,
+                                uint32_t smallCoreNum,
+                                uint32_t bigCoreDataNum,
+                                uint32_t smallCoreDataNum,
+                                uint32_t bigCoreTailDataNum,
+                                uint32_t smallCoreTailDataNum,
+                                uint32_t bigCoreLoopNum,
+                                uint32_t smallCoreLoopNum,
 
                                 float beta,
                                 float threshold)
     {
-        this->totalDataNum = totalDataNum;
-        this->loopNum = loopNum;
+        int64_t coreIndex = AscendC::GetBlockIdx();
+        uint32_t globalBufferIndex = bigCoreDataNum * coreIndex;
+
         this->tilingDataNum = tilingDataNum;
-        this->tailDataNum = tailDataNum;
+
+        if (coreIndex < bigCoreNum)
+        {
+            this->loopNum = bigCoreLoopNum;
+            this->coreDataNum = bigCoreDataNum;
+            this->tailDataNum = bigCoreTailDataNum;
+        }
+        else
+        {
+            this->loopNum = smallCoreLoopNum;
+            this->coreDataNum = smallCoreDataNum;
+            this->tailDataNum = smallCoreTailDataNum;
+            globalBufferIndex -= (bigCoreDataNum - smallCoreDataNum) *  (coreIndex - bigCoreNum);
+        }
 
         this->beta = beta;
         this->threshold = threshold;
 
-        xGm.SetGlobalBuffer((__gm__ DTYPE_X *)x + this->tilingDataNum * AscendC::GetBlockIdx(), this->tilingDataNum);
-        yGm.SetGlobalBuffer((__gm__ DTYPE_Y *)y + this->tilingDataNum * AscendC::GetBlockIdx(), this->tilingDataNum);
-        pipe.InitBuffer(inQueueX, PING_PONG_BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_X));
-        pipe.InitBuffer(outQueueY, PING_PONG_BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_Y));
+        xGm.SetGlobalBuffer((__gm__ DTYPE_X *)x + globalBufferIndex, this->coreDataNum);
+        yGm.SetGlobalBuffer((__gm__ DTYPE_Y *)y + globalBufferIndex, this->coreDataNum);
+        pipe.InitBuffer(inQueueX, BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_X));
+        pipe.InitBuffer(outQueueY, BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_Y));
         pipe.InitBuffer(calBuf1, this->tilingDataNum * sizeof(float32_t));
         pipe.InitBuffer(calBuf2, this->tilingDataNum * sizeof(float32_t));
     }
@@ -64,9 +84,9 @@ private:
         AscendC::LocalTensor<DTYPE_X> xLocal = inQueueX.DeQue<DTYPE_X>();
         AscendC::LocalTensor<DTYPE_Y> yLocal = outQueueY.AllocTensor<DTYPE_Y>();
 
-        printf("Before Softplus computation, xLocal data:\n");
-        AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-        printf("\n");
+        // printf("Before Softplus computation, xLocal data:\n");
+        // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+        // printf("\n");
 
         if constexpr (std::is_same_v<DTYPE_X, bfloat16_t> || std::is_same_v<DTYPE_X, float16_t>)
         {
@@ -74,44 +94,44 @@ private:
             auto beta_x = calBuf2.Get<float32_t>(dataNum);
         
             AscendC::Cast(res, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
-            printf("After Cast to float32, res data:\n");
-            AscendC::DumpTensor(res, 0, (uint32_t)128);
-            printf("\n");
+            // printf("After Cast to float32, res data:\n");
+            // AscendC::DumpTensor(res, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Muls(beta_x, res, static_cast<float>(beta), dataNum);
-            printf("After Muls beta, beta_x data:\n");
-            AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
-            printf("\n");
+            // printf("After Muls beta, beta_x data:\n");
+            // AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Muls(res, beta_x, static_cast<float>(scalar * (-1.0f)), dataNum);
-            printf("After Muls -1, res data:\n");
-            AscendC::DumpTensor(res, 0, (uint32_t)128);
-            printf("\n");
+            // printf("After Muls -1, res data:\n");
+            // AscendC::DumpTensor(res, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Exp(res, res, dataNum);
-            printf("After Exp, res data:\n");
-            AscendC::DumpTensor(res, 0, (uint32_t)128);
-            printf("\n");
+            // printf("After Exp, res data:\n");
+            // AscendC::DumpTensor(res, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Adds(res, res, static_cast<float>(scalar), dataNum);
-            printf("After Adds 1, res data:\n");
-            AscendC::DumpTensor(res, 0, (uint32_t)128);
-            printf("\n");
+            // printf("After Adds 1, res data:\n");
+            // AscendC::DumpTensor(res, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Ln(res, res, dataNum);
-            printf("After Ln, res data:\n");
-            AscendC::DumpTensor(res, 0, (uint32_t)128);
-            printf("\n");
+            // printf("After Ln, res data:\n");
+            // AscendC::DumpTensor(res, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Add(res, beta_x, res, dataNum);
-            printf("After Adds βx, res data:\n");
-            AscendC::DumpTensor(res, 0, (uint32_t)128);
-            printf("\n");
+            // printf("After Adds βx, res data:\n");
+            // AscendC::DumpTensor(res, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Muls(res, res, static_cast<float>(1.0f / beta), dataNum);
-            printf("After Muls 1/beta, res data:\n");
-            AscendC::DumpTensor(res, 0, (uint32_t)128);
-            printf("\n");
+            // printf("After Muls 1/beta, res data:\n");
+            // AscendC::DumpTensor(res, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Cast(yLocal, res, AscendC::RoundMode::CAST_NONE, dataNum);
         }
@@ -119,35 +139,40 @@ private:
         {
             auto beta_x = calBuf2.Get<DTYPE_X>(dataNum);
 
-            // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-
             AscendC::Muls(beta_x, xLocal, static_cast<DTYPE_X>(beta), dataNum);
             // printf("After Muls beta, beta_x data:\n");
             // AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Muls(xLocal, beta_x, static_cast<DTYPE_X>(scalar * (-1.0f)), dataNum);
             // printf("After Muls -1, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Exp(xLocal, xLocal, dataNum);
             // printf("After Exp, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Adds(xLocal, xLocal, static_cast<DTYPE_X>(scalar), dataNum);
             // printf("After Adds 1, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Ln(xLocal, xLocal, dataNum);
             // printf("After Ln, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Add(xLocal, beta_x, xLocal, dataNum);
             // printf("After Adds βx, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
+            // printf("\n");
 
             AscendC::Muls(yLocal, xLocal, static_cast<DTYPE_Y>(1.0f / beta), dataNum);
             // printf("After Muls 1/beta, yLocal data:\n");
             // AscendC::DumpTensor(yLocal, 0, (uint32_t)128);
+            // printf("\n");
         }
         outQueueY.EnQue<DTYPE_Y>(yLocal);
         inQueueX.FreeTensor(xLocal);
@@ -163,16 +188,16 @@ private:
 private:
     TPipe pipe;
     // create queue for input, in this case depth is equal to buffer num
-    AscendC::TQue<AscendC::TPosition::VECIN, PING_PONG_BUFFER_NUM> inQueueX;
+    AscendC::TQue<AscendC::TPosition::VECIN, BUFFER_NUM> inQueueX;
     // create queue for output, in this case depth is equal to buffer num
-    AscendC::TQue<AscendC::TPosition::VECOUT, PING_PONG_BUFFER_NUM> outQueueY;
+    AscendC::TQue<AscendC::TPosition::VECOUT, BUFFER_NUM> outQueueY;
     AscendC::TBuf<AscendC::QuePosition::VECCALC> calBuf1, calBuf2;
     AscendC::GlobalTensor<DTYPE_X> xGm;
     AscendC::GlobalTensor<DTYPE_Y> yGm;
 
-    uint32_t totalDataNum;
-    uint32_t loopNum;
     uint32_t tilingDataNum;
+    uint32_t coreDataNum;
+    uint32_t loopNum;
     uint32_t tailDataNum;
 
     float beta;
@@ -184,10 +209,16 @@ extern "C" __global__ __aicore__ void softplus(GM_ADDR x, GM_ADDR y, GM_ADDR wor
     GET_TILING_DATA(tiling_data, tiling);
     KernelSoftplus op;
     op.Init(x, y, 
-            tiling_data.totalDataNum,
-            tiling_data.loopNum,
             tiling_data.tilingDataNum,
-            tiling_data.tailDataNum,
+
+            tiling_data.bigCoreNum,
+            tiling_data.smallCoreNum,
+            tiling_data.bigCoreDataNum,
+            tiling_data.smallCoreDataNum,
+            tiling_data.bigCoreTailDataNum,
+            tiling_data.smallCoreTailDataNum,
+            tiling_data.bigCoreLoopNum,
+            tiling_data.smallCoreLoopNum,
 
             tiling_data.beta,
             tiling_data.threshold);
