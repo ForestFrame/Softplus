@@ -2,13 +2,13 @@
 
 using namespace AscendC;
 
-#define BUFFER_NUM 2
+#define BUFFER_NUM 2 // 乒乓操作缓冲buffer
 
 class KernelSoftplus
 {
 public:
     __aicore__ inline KernelSoftplus() {}
-    __aicore__ inline void Init(GM_ADDR x, GM_ADDR y, 
+    __aicore__ inline void Init(GM_ADDR x, GM_ADDR y,
                                 uint32_t tilingDataNum,
 
                                 uint32_t bigCoreNum,
@@ -24,7 +24,7 @@ public:
                                 float threshold)
     {
         int64_t coreIndex = AscendC::GetBlockIdx();
-        uint32_t globalBufferIndex = bigCoreDataNum * coreIndex;
+        uint32_t globalBufferIndex = bigCoreDataNum * coreIndex; // 地址偏移，具体怎么算的其实我不是很清楚，从网课中截出来的
 
         this->tilingDataNum = tilingDataNum;
 
@@ -39,7 +39,7 @@ public:
             this->loopNum = smallCoreLoopNum;
             this->coreDataNum = smallCoreDataNum;
             this->tailDataNum = smallCoreTailDataNum;
-            globalBufferIndex -= (bigCoreDataNum - smallCoreDataNum) *  (coreIndex - bigCoreNum);
+            globalBufferIndex -= (bigCoreDataNum - smallCoreDataNum) * (coreIndex - bigCoreNum);
         }
 
         this->beta = beta;
@@ -90,9 +90,9 @@ private:
 
         if constexpr (std::is_same_v<DTYPE_X, bfloat16_t> || std::is_same_v<DTYPE_X, float16_t>)
         {
-            auto res = calBuf1.Get<float32_t>(dataNum);
-            auto beta_x = calBuf2.Get<float32_t>(dataNum);
-        
+            auto res = calBuf1.Get<float32_t>(dataNum);    // 结果值
+            auto beta_x = calBuf2.Get<float32_t>(dataNum); // 缓存βx的值
+
             AscendC::Cast(res, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
             // printf("After Cast to float32, res data:\n");
             // AscendC::DumpTensor(res, 0, (uint32_t)128);
@@ -195,10 +195,10 @@ private:
     AscendC::GlobalTensor<DTYPE_X> xGm;
     AscendC::GlobalTensor<DTYPE_Y> yGm;
 
-    uint32_t tilingDataNum;
-    uint32_t coreDataNum;
-    uint32_t loopNum;
-    uint32_t tailDataNum;
+    uint32_t tilingDataNum;  // 单核单次tiling可处理的数据元素数
+    uint32_t coreDataNum;    // 该核需要处理的总数居元素数
+    uint32_t loopNum;        // 该核需要处理的循环次数，不包括最后一个尾处理
+    uint32_t tailDataNum;    // 该核需要处理的尾数据元素数
 
     float beta;
     float threshold;
@@ -208,7 +208,7 @@ extern "C" __global__ __aicore__ void softplus(GM_ADDR x, GM_ADDR y, GM_ADDR wor
 {
     GET_TILING_DATA(tiling_data, tiling);
     KernelSoftplus op;
-    op.Init(x, y, 
+    op.Init(x, y,
             tiling_data.tilingDataNum,
 
             tiling_data.bigCoreNum,

@@ -3,8 +3,8 @@
 #include "register/op_def_registry.h"
 #include "tiling/platform/platform_ascendc.h"
 
-#define BLOCK_SIZE 32
-#define BUFFER_NUM 2
+#define BLOCK_SIZE 32 // 32字节block对齐
+#define BUFFER_NUM 2  // 乒乓操作缓冲buffer
 
 namespace optiling
 {
@@ -24,10 +24,11 @@ namespace optiling
         /* -------------------- 计算tiling参数 -------------------- */
         auto data_type = context->GetInputDesc(0)->GetDataType();
         uint32_t sizeofdatatype = 0;
-        uint32_t ubPartNum = 0;
-        uint32_t alignNum = 0;
-        uint32_t tilingBlockNum = 0;
-        uint32_t tilingDataNum = 0;
+        uint32_t ubPartNum = 0;      // 对单核的ub区进行分块，输入输出和中间缓存buff都要占ub空间，ubPartNum是分区块数
+        uint32_t alignNum = 0;       // 每个block对齐的数据元素数
+        uint32_t tilingBlockNum = 0; // 单核单次tiling可处理的数据块数
+        uint32_t tilingDataNum = 0;  // 单核单次tiling可处理的数据元素数
+
         if (data_type == ge::DT_FLOAT16 || data_type == ge::DT_BF16)
         {
             sizeofdatatype = 2;
@@ -39,13 +40,14 @@ namespace optiling
             ubPartNum = 3;
         }
         alignNum = BLOCK_SIZE / sizeofdatatype;
-        tilingBlockNum = ((ub_size) / BLOCK_SIZE / BUFFER_NUM) / ubPartNum; // 单次tiling可处理的数据块数
-        tilingDataNum = tilingBlockNum * alignNum;                          // 单次tiling可处理的数据元素数
+        tilingBlockNum = ((ub_size) / BLOCK_SIZE / BUFFER_NUM) / ubPartNum;
+        tilingDataNum = tilingBlockNum * alignNum;
 
         const gert::StorageShape *x1_shape = context->GetInputShape(0);
-        uint32_t totalDataNum = 1;
-        uint32_t totalBytes = 0;
-        uint32_t totalBlockNum = 0;
+        uint32_t totalDataNum = 1;  // 输入数据总元素数
+        uint32_t totalBytes = 0;    // 输入数据总字节数
+        uint32_t totalBlockNum = 0; // 输入数据总数据块数
+
         for (uint32_t i = 0; i < x1_shape->GetStorageShape().GetDimNum(); i++)
             totalDataNum *= x1_shape->GetStorageShape().GetDim(i);
         totalBytes = totalDataNum * sizeofdatatype;
@@ -89,19 +91,19 @@ namespace optiling
         smallCoreTailDataNum = smallCoreTailBlockNum * alignNum;
 
         // 大小核常规批次搬运次数，最后一次的搬运另算
-        bigCoreLoopNum = bigCoreBlockNum / tilingBlockNum; 
+        bigCoreLoopNum = bigCoreBlockNum / tilingBlockNum;
         smallCoreLoopNum = smallCoreBlockNum / tilingBlockNum;
 
-        printf("Total data num: %d.\n", totalDataNum);
-        printf("Tiling data num: %d.\n", tilingDataNum);
-        printf("Big core num: %d.\n", bigCoreNum);
-        printf("Small core num: %d.\n", smallCoreNum);
-        printf("Big core tail block num: %d.\n", bigCoreTailBlockNum);
-        printf("Small core tail block num: %d.\n", smallCoreTailBlockNum);
-        printf("Big core tail data num: %d.\n", bigCoreTailDataNum);
-        printf("Small core tail data num: %d.\n", smallCoreTailDataNum);
-        printf("Big core loop num: %d.\n", bigCoreLoopNum);
-        printf("Small core loop num: %d.\n", smallCoreLoopNum);
+        // printf("Total data num: %d.\n", totalDataNum);
+        // printf("Tiling data num: %d.\n", tilingDataNum);
+        // printf("Big core num: %d.\n", bigCoreNum);
+        // printf("Small core num: %d.\n", smallCoreNum);
+        // printf("Big core tail block num: %d.\n", bigCoreTailBlockNum);
+        // printf("Small core tail block num: %d.\n", smallCoreTailBlockNum);
+        // printf("Big core tail data num: %d.\n", bigCoreTailDataNum);
+        // printf("Small core tail data num: %d.\n", smallCoreTailDataNum);
+        // printf("Big core loop num: %d.\n", bigCoreLoopNum);
+        // printf("Small core loop num: %d.\n", smallCoreLoopNum);
 
         /* -------------------- 获取算子属性 -------------------- */
         const gert::RuntimeAttrs *attrs = context->GetAttrs();
