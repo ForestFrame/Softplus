@@ -49,8 +49,8 @@ public:
         yGm.SetGlobalBuffer((__gm__ DTYPE_Y *)y + globalBufferIndex, this->coreDataNum);
         pipe.InitBuffer(inQueueX, BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_X));
         pipe.InitBuffer(outQueueY, BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_Y));
-        pipe.InitBuffer(calBuf1, this->tilingDataNum * sizeof(float32_t));
-        pipe.InitBuffer(calBuf2, this->tilingDataNum * sizeof(float32_t));
+        pipe.InitBuffer(calBuf1, this->tilingDataNum * sizeof(DTYPE_X));
+        pipe.InitBuffer(calBuf2, this->tilingDataNum * sizeof(DTYPE_X));
     }
     __aicore__ inline void Process()
     {
@@ -88,7 +88,7 @@ private:
         // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
         // printf("\n");
 
-        if constexpr (std::is_same_v<DTYPE_X, bfloat16_t> || std::is_same_v<DTYPE_X, float16_t>)
+        if constexpr (std::is_same_v<DTYPE_X, bfloat16_t>)
         {
             auto res = calBuf1.Get<float32_t>(dataNum);    // 结果值
             auto beta_x = calBuf2.Get<float32_t>(dataNum); // 缓存βx的值
@@ -103,7 +103,7 @@ private:
             // AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
             // printf("\n");
 
-            AscendC::Muls(res, beta_x, static_cast<float>(scalar * (-1.0f)), dataNum);
+            AscendC::Muls(res, beta_x, static_cast<float>(scalar * (-1)), dataNum);
             // printf("After Muls -1, res data:\n");
             // AscendC::DumpTensor(res, 0, (uint32_t)128);
             // printf("\n");
@@ -128,7 +128,7 @@ private:
             // AscendC::DumpTensor(res, 0, (uint32_t)128);
             // printf("\n");
 
-            AscendC::Muls(res, res, static_cast<float>(1.0f / beta), dataNum);
+            AscendC::Muls(res, res, static_cast<float>(1 / beta), dataNum);
             // printf("After Muls 1/beta, res data:\n");
             // AscendC::DumpTensor(res, 0, (uint32_t)128);
             // printf("\n");
@@ -144,7 +144,7 @@ private:
             // AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
             // printf("\n");
 
-            AscendC::Muls(xLocal, beta_x, static_cast<DTYPE_X>(scalar * (-1.0f)), dataNum);
+            AscendC::Muls(xLocal, beta_x, static_cast<DTYPE_X>(scalar * (-1)), dataNum);
             // printf("After Muls -1, xLocal data:\n");
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
             // printf("\n");
@@ -169,7 +169,7 @@ private:
             // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
             // printf("\n");
 
-            AscendC::Muls(yLocal, xLocal, static_cast<DTYPE_Y>(1.0f / beta), dataNum);
+            AscendC::Muls(yLocal, xLocal, static_cast<DTYPE_Y>(1 / beta), dataNum);
             // printf("After Muls 1/beta, yLocal data:\n");
             // AscendC::DumpTensor(yLocal, 0, (uint32_t)128);
             // printf("\n");

@@ -5,8 +5,8 @@ import numpy as np
 import sys 
 import os
 
-# dtype = torch.float16
-dtype = torch.float32
+dtype = torch.float16
+# dtype = torch.float32
 
 case_data = {
     # 基本测试用例
@@ -17,19 +17,19 @@ case_data = {
     },
     # 变输入数据范围
     'case2': {
-        'x': (torch.rand(32) * 1000 + 9000).to(dtype),
+        'x': (torch.rand(32) * 9000).to(dtype),
         'beta': 1.0,
         'threshold': 20.0
     },
     # 变输入数据量
     'case3': {
-        'x': (torch.rand(6400, 6400) * 1000 + 9000).to(dtype),
+        'x': (torch.rand(6400, 6400) * 9000).to(dtype),
         'beta': 1.0,
         'threshold': 20.0
     },
     # 变beta值
     'case4': {
-        'x': (torch.rand(6400, 6400) * 1000 + 9000).to(dtype),
+        'x': (torch.rand(6400, 6400) * 9000).to(dtype),
         'beta': 5.0,
         'threshold': 20.0
     },
