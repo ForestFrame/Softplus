@@ -29,10 +29,15 @@ namespace optiling
         uint32_t tilingBlockNum = 0; // 单核单次tiling可处理的数据块数
         uint32_t tilingDataNum = 0;  // 单核单次tiling可处理的数据元素数
 
-        if (data_type == ge::DT_FLOAT16 || data_type == ge::DT_BF16)
+        if (data_type == ge::DT_BF16)
         {
             sizeofdatatype = 2;
             ubPartNum = 4;
+        }
+        else if(data_type == ge::DT_FLOAT16)
+        {
+            sizeofdatatype = 2;
+            ubPartNum = 3;
         }
         else
         {
