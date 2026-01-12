@@ -15,25 +15,25 @@ case_data = {
     },
     # 变输入数据范围
     'case2': {
-        'x': (torch.rand(32) * 40).to(dtype),
+        'x': (torch.rand(32) * 100 - 50).to(dtype),
         'beta': 1.0,
         'threshold': 20.0
     },
     # 变输入数据量
     'case3': {
-        'x': (torch.rand(6400, 6400) * 9000).to(dtype),
+        'x': (torch.rand(6400, 6400) * 100 - 50).to(dtype),
         'beta': 1.0,
         'threshold': 20.0
     },
     # 变beta值
     'case4': {
-        'x': (torch.rand(6400, 6400) * 9000).to(dtype),
+        'x': (torch.rand(6400, 6400) * 100 - 50).to(dtype),
         'beta': 2.0,
         'threshold': 20.0
     },
     # 变threshold值
     'case5': {
-        'x': (torch.rand(6400, 6400) * 9000).to(dtype),
+        'x': (torch.rand(6400, 6400) * 10000 - 5000).to(dtype),
         'beta': 2.0,
         'threshold': 10.0
     },
