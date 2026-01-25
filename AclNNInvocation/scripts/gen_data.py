@@ -48,7 +48,7 @@ case_data = {
 
     # 常规数值范围
     'case5': {
-        'x': (torch.rand(6400) * 20 - 10).to(dtype),   # [-10, 10]
+        'x': (torch.rand(6000) * 20 - 10).to(dtype),   # [-10, 10]
         'beta': 1.0,
         'threshold': 20.0
     },
@@ -71,7 +71,7 @@ case_data = {
 
     # 大规模 + 常规范围
     'case7': {
-        'x': (torch.rand(6400, 6400) * 20 - 10).to(dtype),
+        'x': (torch.rand(6000, 6000) * 20 - 10).to(dtype),
         'beta': 1.0,
         'threshold': 20.0
     },
@@ -79,7 +79,7 @@ case_data = {
     # 大规模 + 高风险指数区（beta = 1）
     # exp(x) 接近数值上限，验证溢出处理与 threshold 分支
     'case8': {
-        'x': (torch.rand(6400, 6400) * 80 - 40).to(dtype),  # [-40, 40]
+        'x': (torch.rand(6000, 6000) * 80 - 40).to(dtype),  # [-40, 40]
         'beta': 1.0,
         'threshold': 20.0
     },
@@ -87,7 +87,7 @@ case_data = {
     # 大规模 + 高风险指数区（beta = 2）
     # βx 被放大，更容易触发 exp 溢出
     'case9': {
-        'x': (torch.rand(6400, 6400) * 40 - 20).to(dtype),  # βx ∈ [-40, 40]
+        'x': (torch.rand(6000, 6000) * 40 - 20).to(dtype),  # βx ∈ [-40, 40]
         'beta': 2.0,
         'threshold': 20.0
     },
@@ -99,8 +99,8 @@ case_data = {
     # 精确卡 threshold 左右，验证分支一致性
     'case10': {
         'x': torch.cat([
-            torch.full((3200, 6400), 19.9),   # threshold 左侧
-            torch.full((3200, 6400), 20.1)    # threshold 右侧
+            torch.full((3200, 6000), 19.9),   # threshold 左侧
+            torch.full((3200, 6000), 20.1)    # threshold 右侧
         ]).to(dtype),
         'beta': 1.0,
         'threshold': 20.0
