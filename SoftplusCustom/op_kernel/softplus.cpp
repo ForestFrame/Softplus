@@ -55,7 +55,6 @@ public:
     __aicore__ inline void Process()
     {
         int32_t loopCount = this->loopNum;
-        // printf("Loop count: %d.\n", loopCount);
         for (int32_t i = 0; i < loopCount; i++)
         {
             CopyIn(i, this->tilingDataNum);
@@ -87,8 +86,8 @@ private:
         if (std::is_same_v<DTYPE_X, bfloat16_t>)
         {
             AscendC::LocalTensor<float> tempTensor = calBuf.Get<float>(dataNum);
+            
             AscendC::Cast(tempTensor, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
-
             AscendC::Muls(tempTensor, tempTensor, static_cast<float>(beta), dataNum);
             AscendC::Exp(tempTensor, tempTensor, dataNum);
             AscendC::Adds(tempTensor, tempTensor, static_cast<float>(scalar), dataNum);
