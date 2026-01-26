@@ -64,7 +64,7 @@ private:
 
         // printf("Before Softplus computation, xLocal data:\n");
 
-        if (std::is_same_v<DTYPE_X, bfloat16_t> || std::is_same_v<DTYPE_X, float16_t>)
+        if (std::is_same_v<DTYPE_X, bfloat16_t>)
         {
             AscendC::LocalTensor<float> tempTensor = calBuf.Get<float>(dataNum);
             AscendC::Cast(tempTensor, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
@@ -92,7 +92,7 @@ private:
             // printf("After Muls 1/beta, tempTensor data:\n");
             // AscendC::DumpTensor(tempTensor, 0, (uint32_t)128);
 
-            AscendC::Cast(yLocal, tempTensor, AscendC::RoundMode::CAST_NONE, dataNum);
+            AscendC::Cast(yLocal, tempTensor, AscendC::RoundMode::CAST_RINT, dataNum);
         }
         else
         {

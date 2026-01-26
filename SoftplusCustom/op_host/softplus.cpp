@@ -5,7 +5,7 @@
 
 #define BLOCK_SIZE 32
 #define PING_PONG_BUFFER_NUM 2
-#define NUM 5
+#define NUM 3
 
 namespace optiling
 {
