@@ -50,9 +50,7 @@ public:
         yGm.SetGlobalBuffer((__gm__ DTYPE_Y *)y + globalBufferIndex, this->coreDataNum);
         pipe.InitBuffer(inQueueX, BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_X));
         pipe.InitBuffer(outQueueY, BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_Y));
-        pipe.InitBuffer(calBuf1, this->tilingDataNum * sizeof(float32_t));
-        pipe.InitBuffer(calBuf2, this->tilingDataNum * sizeof(float32_t));
-        pipe.InitBuffer(calBuf3, this->tilingDataNum * sizeof(float32_t));
+        pipe.InitBuffer(calBuf, this->tilingDataNum * sizeof(float32_t));
     }
     __aicore__ inline void Process()
     {
@@ -86,174 +84,25 @@ private:
         AscendC::LocalTensor<DTYPE_X> xLocal = inQueueX.DeQue<DTYPE_X>();
         AscendC::LocalTensor<DTYPE_Y> yLocal = outQueueY.AllocTensor<DTYPE_Y>();
 
-        // printf("Before Softplus computation, xLocal data:\n");
-        // AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-        // printf("\n");
-
-        if constexpr (std::is_same_v<DTYPE_X, float32_t> || std::is_same_v<DTYPE_X, float16_t>)
+        if (std::is_same_v<DTYPE_X, bfloat16_t>)
         {
-            auto max = calBuf1.Get<DTYPE_X>(dataNum); // 缓存max(x, 0)的值
-            auto beta_x = calBuf2.Get<DTYPE_X>(dataNum);
+            AscendC::LocalTensor<float> tempTensor = calBuf.Get<float>(dataNum);
+            AscendC::Cast(tempTensor, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
 
-            AscendC::Muls(beta_x, xLocal, static_cast<DTYPE_X>(beta), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Muls beta, beta_x data:\n");
-            //     AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Abs(xLocal, beta_x, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Abs, xLocal data:\n");
-            //     AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Muls(xLocal, xLocal, static_cast<DTYPE_X>(scalar * (-1)), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Muls -1, xLocal data:\n");
-            //     AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Exp(xLocal, xLocal, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Exp, xLocal data:\n");
-            //     AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Adds(xLocal, xLocal, static_cast<DTYPE_X>(scalar), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Adds 1, xLocal data:\n");
-            //     AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Ln(xLocal, xLocal, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Ln, xLocal data:\n");
-            //     AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Maxs(max, beta_x, static_cast<DTYPE_X>(0), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Maxs 0, max data:\n");
-            //     AscendC::DumpTensor(max, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Add(xLocal, max, xLocal, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Adds βx, xLocal data:\n");
-            //     AscendC::DumpTensor(xLocal, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Muls(yLocal, xLocal, static_cast<DTYPE_Y>(1 / beta), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Muls 1/beta, yLocal data:\n");
-            //     AscendC::DumpTensor(yLocal, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
+            AscendC::Muls(tempTensor, tempTensor, static_cast<float>(beta), dataNum);
+            AscendC::Exp(tempTensor, tempTensor, dataNum);
+            AscendC::Adds(tempTensor, tempTensor, static_cast<float>(scalar), dataNum);
+            AscendC::Ln(tempTensor, tempTensor, dataNum);
+            AscendC::Muls(tempTensor, tempTensor, static_cast<float>(1.0f / beta), dataNum);
+            AscendC::Cast(yLocal, tempTensor, AscendC::RoundMode::CAST_RINT, dataNum);
         }
         else
         {
-            auto res = calBuf1.Get<float32_t>(dataNum);    // 结果值
-            auto beta_x = calBuf2.Get<float32_t>(dataNum); // 缓存βx的值
-            auto max = calBuf3.Get<float32_t>(dataNum);    // 缓存max(βx, 0)的值
-
-            AscendC::Cast(res, xLocal, AscendC::RoundMode::CAST_NONE, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Cast to float32, res data:\n");
-            //     AscendC::DumpTensor(res, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Muls(beta_x, res, static_cast<float32_t>(beta), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Muls beta, beta_x data:\n");
-            //     AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Abs(res, beta_x, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Abs, res data:\n");
-            //     AscendC::DumpTensor(res, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Muls(res, res, static_cast<float32_t>(scalar * (-1)), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Muls -1, res data:\n");
-            //     AscendC::DumpTensor(res, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Exp(res, res, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Exp, res data:\n");
-            //     AscendC::DumpTensor(res, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Adds(res, res, static_cast<float32_t>(scalar), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Adds 1, res data:\n");
-            //     AscendC::DumpTensor(res, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Ln(res, res, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Ln, res data:\n");
-            //     AscendC::DumpTensor(res, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Maxs(max, beta_x, static_cast<float32_t>(0.0), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Maxs 0, beta_x data:\n");
-            //     AscendC::DumpTensor(beta_x, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Add(res, max, res, dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Adds βx, res data:\n");
-            //     AscendC::DumpTensor(res, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Muls(res, res, static_cast<float32_t>(1 / beta), dataNum);
-            // if (progress == 0)
-            // {
-            //     printf("After Muls 1/beta, res data:\n");
-            //     AscendC::DumpTensor(res, 0, (uint32_t)128);
-            //     printf("\n");
-            // }
-
-            AscendC::Cast(yLocal, res, AscendC::RoundMode::CAST_RINT, dataNum);
+            AscendC::Muls(xLocal, xLocal, static_cast<DTYPE_X>(beta), dataNum);
+            AscendC::Exp(xLocal, xLocal, dataNum);
+            AscendC::Adds(xLocal, xLocal, static_cast<DTYPE_X>(scalar), dataNum);
+            AscendC::Ln(xLocal, xLocal, dataNum);
+            AscendC::Muls(yLocal, xLocal, static_cast<DTYPE_Y>(1.0f / beta), dataNum);
         }
         outQueueY.EnQue<DTYPE_Y>(yLocal);
         inQueueX.FreeTensor(xLocal);
@@ -272,7 +121,7 @@ private:
     AscendC::TQue<AscendC::TPosition::VECIN, BUFFER_NUM> inQueueX;
     // create queue for output, in this case depth is equal to buffer num
     AscendC::TQue<AscendC::TPosition::VECOUT, BUFFER_NUM> outQueueY;
-    AscendC::TBuf<AscendC::QuePosition::VECCALC> calBuf1, calBuf2, calBuf3;
+    AscendC::TBuf<AscendC::QuePosition::VECCALC> calBuf;
     AscendC::GlobalTensor<DTYPE_X> xGm;
     AscendC::GlobalTensor<DTYPE_Y> yGm;
 

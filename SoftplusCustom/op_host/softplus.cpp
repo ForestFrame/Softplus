@@ -32,17 +32,17 @@ namespace optiling
         if (data_type == ge::DT_BF16)
         {
             sizeofdatatype = 2;
-            ubPartNum = 5;
+            ubPartNum = 3;
         }
         else if(data_type == ge::DT_FLOAT16)
         {
             sizeofdatatype = 2;
-            ubPartNum = 4;
+            ubPartNum = 2;
         }
         else
         {
             sizeofdatatype = 4;
-            ubPartNum = 4;
+            ubPartNum = 2;
         }
         alignNum = BLOCK_SIZE / sizeofdatatype;
         tilingBlockNum = ((ub_size) / BLOCK_SIZE / BUFFER_NUM) / ubPartNum;
