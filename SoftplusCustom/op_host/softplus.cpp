@@ -60,13 +60,6 @@ namespace optiling
         coreNum = (coreNum >= 1) ? coreNum : 1;
         alignNum = BLOCK_SIZE / sizeofdatatype;
         tilingBlockNum = ((ub_size) / BLOCK_SIZE / BUFFER_NUM) / ubPartNum;
-        //! 512字节对齐修改
-        if (totalBytes > 512)
-        {
-            tilingBlockNum = ((tilingBlockNum + 16 - 1) / 16) * 16;
-        }
-        tilingBlockNum = (tilingBlockNum >= 1) ? tilingBlockNum : 1;
-
         tilingDataNum = tilingBlockNum * alignNum;
 
         uint32_t bigCoreNum = 0;
