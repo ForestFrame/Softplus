@@ -22,25 +22,19 @@ namespace optiling
         // printf("UB size: %d.\n", (uint32_t)ub_size);
 
         /* -------------------- 计算tiling参数 -------------------- */
-        const gert::StorageShape *x1_shape = context->GetInputShape(0);
         auto data_type = context->GetInputDesc(0)->GetDataType();
-
         uint32_t sizeofdatatype = 0;
         uint32_t ubPartNum = 0;      // 对单核的ub区进行分块，输入输出和中间缓存buff都要占ub空间，ubPartNum是分区块数
         uint32_t alignNum = 0;       // 每个block对齐的数据元素数
         uint32_t tilingBlockNum = 0; // 单核单次tiling可处理的数据块数
         uint32_t tilingDataNum = 0;  // 单核单次tiling可处理的数据元素数
 
-        uint32_t totalDataNum = 1;  // 输入数据总元素数
-        uint32_t totalBytes = 0;    // 输入数据总字节数
-        uint32_t totalBlockNum = 0; // 输入数据总数据块数
-
         if (data_type == ge::DT_BF16)
         {
             sizeofdatatype = 2;
             ubPartNum = 3;
         }
-        else if (data_type == ge::DT_FLOAT16)
+        else if(data_type == ge::DT_FLOAT16)
         {
             sizeofdatatype = 2;
             ubPartNum = 2;
@@ -50,6 +44,14 @@ namespace optiling
             sizeofdatatype = 4;
             ubPartNum = 2;
         }
+        alignNum = BLOCK_SIZE / sizeofdatatype;
+        tilingBlockNum = ((ub_size) / BLOCK_SIZE / BUFFER_NUM) / ubPartNum;
+        tilingDataNum = tilingBlockNum * alignNum;
+
+        const gert::StorageShape *x1_shape = context->GetInputShape(0);
+        uint32_t totalDataNum = 1;  // 输入数据总元素数
+        uint32_t totalBytes = 0;    // 输入数据总字节数
+        uint32_t totalBlockNum = 0; // 输入数据总数据块数
 
         for (uint32_t i = 0; i < x1_shape->GetStorageShape().GetDimNum(); i++)
             totalDataNum *= x1_shape->GetStorageShape().GetDim(i);
@@ -58,9 +60,6 @@ namespace optiling
         totalBlockNum = totalBytes / BLOCK_SIZE;                              // 总数据块数
         coreNum = (totalBlockNum > coreNum) ? coreNum : totalBlockNum;
         coreNum = (coreNum >= 1) ? coreNum : 1;
-        alignNum = BLOCK_SIZE / sizeofdatatype;
-        tilingBlockNum = ((ub_size) / BLOCK_SIZE / BUFFER_NUM) / ubPartNum;
-        tilingDataNum = tilingBlockNum * alignNum;
 
         uint32_t bigCoreNum = 0;
         uint32_t bigCoreBlockNum = 0;
