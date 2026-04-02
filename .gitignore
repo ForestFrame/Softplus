@@ -1,0 +1,66 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# VS Code
+.vscode/
+
+# Generic build artifacts
+build/
+build_out/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Makefile
+install_manifest.txt
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Runtime logs / profiling
+*.log
+*.prof
+*.csv
+*.jsonl
+msprof/
+profiler/
+
+# AclNNInvocation generated inputs / outputs
+AclNNInvocation/build/
+AclNNInvocation/output/output.bin
+AclNNInvocation/output/*.om
+AclNNInvocation/output/*.log
+AclNNInvocation/output/profiler/
+AclNNInvocation/output/msprof/
+AclNNInvocation/output/execute_op
+
+# SoftplusCustom generated packaging / install artifacts
+SoftplusCustom/build/
+SoftplusCustom/build_out/
+SoftplusCustom/host_native_tiling/
+SoftplusCustom/packages/
+SoftplusCustom/script/
+SoftplusCustom/scripts/install.log
+SoftplusCustom/scripts/upgrade.log
+SoftplusCustom/*.run
+
+# Temporary test files
+test.cpp
+test.md

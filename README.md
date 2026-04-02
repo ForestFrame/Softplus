@@ -6,10 +6,9 @@
 
 项目完整实现了昇腾算子开发的标准流程：
 
-```markdown 
+```markdown
 算子实现 → 算子编译 → 算子部署 → ACLNN调用 → 数值验证 → 性能测试
 ```
-
 
 算子在 **Atlas 200I DK A2（Ascend 310B SoC）** 开发套件上完成编译、部署与运行验证。
 
@@ -22,7 +21,7 @@
 - Pipeline 流水线执行
 - Double Buffer 性能优化机制
 
-***
+---
 
 # Softplus 算子
 
@@ -36,13 +35,13 @@ $$
 
 算子对输入张量 `x` 逐元素执行该计算，并输出结果。
 
-***
+---
 
 # 项目架构
 
 项目整体由两个主要部分组成：
 
-```markdown 
+```markdown
 +----------------------+
 |   AclNNInvocation    |
 |  算子调用与测试程序     |
@@ -61,20 +60,20 @@ $$
 +----------------------+
 ```
 
-
 模块说明：
 
-| 模块               | 作用                               |
-| ---------------- | -------------------------------- |
-| SoftplusCustom   | AscendC算子开发工程，包含Host侧与Kernel侧实现  |
-| AclNNInvocation  | 算子调用与测试程序，通过ACLNN API调用算子        |
-| AI Core          | 昇腾AI处理器核心，执行Kernel计算             |
 
-***
+| 模块            | 作用                                          |
+| --------------- | --------------------------------------------- |
+| SoftplusCustom  | AscendC算子开发工程，包含Host侧与Kernel侧实现 |
+| AclNNInvocation | 算子调用与测试程序，通过ACLNN API调用算子     |
+| AI Core         | 昇腾AI处理器核心，执行Kernel计算              |
+
+---
 
 # 项目结构
 
-```c++ 
+```c++
 Softplus
 ├── AclNNInvocation
 │   ├── inc
@@ -103,8 +102,7 @@ Softplus
 └── doc
 ```
 
-
-***
+---
 
 # 系统设计
 
@@ -118,11 +116,10 @@ Softplus
 
 核心代码：
 
-```c++ 
+```c++
 main.cpp
 op_runner.cpp
 ```
-
 
 主要功能：
 
@@ -131,55 +128,51 @@ op_runner.cpp
 - 调用 ACLNN API 执行算子
 - 获取计算结果
 
-***
+---
 
 ### scripts
 
 包含两个 Python 脚本：
 
-```python 
+```python
 gen_data.py
 verify_result.py
 ```
-
 
 作用：
 
 - 生成测试输入数据
 - 对比 NPU 计算结果与 CPU 计算结果
 
-***
+---
 
 ### input / output
 
-```markdown 
+```markdown
 input  : 输入数据
 output : NPU计算结果
 ```
 
-
-***
+---
 
 # 算子实现设计
 
 AscendC 算子开发分为两个部分：
 
-```text 
+```text
 Host侧
 Kernel侧
 ```
 
-
-***
+---
 
 # Host侧实现（Tiling）
 
 Host 侧代码位于：
 
-```c++ 
+```c++
 SoftplusCustom/op_host/softplus.cpp
 ```
-
 
 Host侧主要负责：
 
@@ -187,7 +180,7 @@ Host侧主要负责：
 - 将输入数据划分到不同 AI Core
 - 将 tiling 参数传递给 kernel
 
-***
+---
 
 ## UB大小获取
 
@@ -199,89 +192,170 @@ Host侧主要负责：
 
 > 每次搬运尽可能大的数据块，从而减少数据搬运次数。
 
-但单次搬运的数据规模受到 **UB 容量限制**，因此需要首先获取 AI Core 的 UB 大小，再据此计算单个 Tile 可处理的数据量。
+但单次搬运的数据规模受到 **UB 容量限制**，因此需要首先获取 AI Core 的 UB 大小，再据此计算单个 Tile 可处理的数据量`tilingDataNum`。
 
 UB 大小可以通过 AscendC 提供的接口获取：
 
-```c++ 
+```c++
 ascendcPlatform.GetCoreMemSize(
     platform_ascendc::CoreMemType::UB,
     ub_size
 );
+
+...
+
+alignNum = BLOCK_SIZE / sizeofdatatype;
+tilingBlockNum = ((ub_size) / BLOCK_SIZE / BUFFER_NUM) / ubPartNum;
+tilingDataNum = tilingBlockNum * alignNum;
 ```
 
-
-***
+---
 
 ## BLOCK\_SIZE 对齐
 
 Ascend AI Core 的 Vector 执行单元最小执行单位为 **一个 Block**。
 
-```text 
+```text
 BLOCK_SIZE = 32 Byte
 ```
 
-
 因此在进行数据计算时，需要将输入数据字节数 **按 32 字节进行向上对齐**，以满足向量计算单元的对齐要求。
 
-***
+---
 
 ## AI Core 数据划分
 
 为了最大化 AI Core 的计算效率，需要让多个 AI Core **并行处理输入数据**。
 
-因此需要将输入数据划分到多个 AI Core 上执行。
+因此，需要先将输入数据划分到多个 AI Core 上执行。在本工程中，采用的是**大小核切分 + 核内尾块处理**的方式：
 
-在实现中采用 **大小核切分机制**：
+1. 首先将总 block 数 `totalBlockNum` 按 AI Core 数量进行划分，得到两类核：
 
-- 正常情况下每个核处理 `tilingDataNum`
-- 部分核需要多处理一部分数据
+   - 大核：每个大核处理 `bigCoreBlockNum`
+   - 小核：每个小核处理 `smallCoreBlockNum`
 
-因此需要处理尾块数据：
+   其中，大核比小核多处理一个 block，因此：
 
-```javascript 
-bigCoreTailDataNum
+   - `bigCoreBlockNum` 表示**每一个大核**的总工作量
+   - `smallCoreBlockNum` 表示**每一个小核**的总工作量
+2. 在完成上述划分后，每个核再根据单轮可处理的 block 数 `tilingBlockNum` 进行循环处理：
+
+   - 完整轮数分别为 `bigCoreLoopNum` 和 `smallCoreLoopNum`
+   - 不足一整轮的剩余部分就是尾块，对应 `bigCoreTailBlockNum` 和 `smallCoreTailBlockNum`
+
+### 尾块划分的理解
+
+需要注意的是，尾块不是针对全局总数据量来计算的，而是针对**每个核自己的总工作量**来计算的。
+
+也就是说，在步骤 1 中，总 block 数已经被分配给各个核；步骤 2 中的尾块，表示的是某个核在处理自己那一段数据时，按 `tilingBlockNum` 切分后最后剩余的一部分。
+
+因此，尾块不是“全局最后剩下的一小块数据交给某一个核处理”，而是“每个核在核内分轮处理时可能产生的最后一轮残余数据”。
+
+进一步说：
+
+- 如果 `bigCoreBlockNum % tilingBlockNum != 0`，那么所有大核都会有尾块
+- 如果 `smallCoreBlockNum % tilingBlockNum != 0`，那么所有小核都会有尾块
+
+所以，尾块可能只出现在大核中，只出现在小核中，也可能两类核同时存在尾块，而不是只出现在某一个核上。
+
+### 举例说明
+
+假设 Host 端最终计算得到如下参数：
+
+```text
+coreNum = 5
+bigCoreNum = 2
+smallCoreNum = 3
+bigCoreBlockNum = 10
+smallCoreBlockNum = 8
+tilingBlockNum = 4
 ```
 
+其含义为：
 
-从而保证所有数据都能被正确处理。
+- 一共使用 5 个 AI Core
+- 前 2 个为大核，后 3 个为小核
+- 每个大核处理 10 个 block
+- 每个小核处理 8 个 block
+- 每轮最多处理 4 个 block
 
-***
+对于大核：
+
+```text
+bigCoreLoopNum = 10 / 4 = 2
+bigCoreTailBlockNum = 10 % 4 = 2
+```
+
+即每个大核先执行 2 轮完整计算，每轮处理 4 个 block，最后再处理 1 个尾块轮次，共 2 个 block。
+
+对于小核：
+
+```text
+smallCoreLoopNum = 8 / 4 = 2
+smallCoreTailBlockNum = 8 % 4 = 0
+```
+
+即每个小核执行 2 轮完整计算，每轮处理 4 个 block，不存在尾块。
+
+AI Core 划分示意如下：
+
+```text
+core0 (大核) : [4] [4] [2]
+core1 (大核) : [4] [4] [2]
+core2 (小核) : [4] [4]
+core3 (小核) : [4] [4]
+core4 (小核) : [4] [4]
+```
+
+由此可以看出，在这个例子中，所有大核都有尾块，而所有小核都没有尾块。尾块是核内切分产生的，不是全局只剩一块交给某一个核处理。
+
+### 具体实现
+
+```c++
+bigCoreNum = totalBlockNum % coreNum;
+smallCoreNum = coreNum - bigCoreNum;
+
+smallCoreBlockNum = totalBlockNum / coreNum;
+bigCoreBlockNum = smallCoreBlockNum + 1;
+
+bigCoreLoopNum = bigCoreBlockNum / tilingBlockNum;
+smallCoreLoopNum = smallCoreBlockNum / tilingBlockNum;
+
+bigCoreTailBlockNum = bigCoreBlockNum % tilingBlockNum;
+smallCoreTailBlockNum = smallCoreBlockNum % tilingBlockNum;
+```
 
 # Kernel实现
 
 Kernel 代码位于：
 
-```c++ 
+```c++
 SoftplusCustom/op_kernel/softplus.cpp
 ```
 
-
 Kernel 在 AI Core 上执行 Softplus 的逐元素计算。
 
-***
+---
 
 # Pipeline 执行流程
 
 算子的执行流程采用 **三阶段流水线结构**：
 
-```markdown 
+```markdown
 Global Memory → Local Memory → Compute → Global Memory
 ```
 
-
 具体执行步骤：
 
-```markdown 
+```markdown
 CopyIn   : 从 Global Memory 读取数据到 UB
 Compute  : 在 AI Core 上执行计算
 CopyOut  : 将结果写回 Global Memory
 ```
 
-
 这种 Pipeline 结构可以提高 AI Core 的执行效率。
 
-***
+---
 
 # Double Buffer 机制
 
@@ -289,55 +363,50 @@ CopyOut  : 将结果写回 Global Memory
 
 通过维护两个 Buffer：
 
-```text 
+```text
 Buffer A
 Buffer B
 ```
 
-
 实现：
 
-```text 
+```text
 Buffer A : 执行计算
 Buffer B : 预取下一块数据
 ```
 
-
 这样可以在计算当前 Tile 的同时加载下一块数据，从而实现：
 
-```markdown 
+```markdown
 数据搬运 与 计算 并行执行
 ```
 
-
 该机制可以有效 **隐藏 Global Memory 访问延迟**，提高算子整体吞吐率。
 
-***
+---
 
 # 使用方法
 
 ## 克隆项目
 
-```bash 
+```bash
 git clone https://github.com/ForestFrame/Softplus.git
 cd Softplus
 ```
 
-
-***
+---
 
 ## 生成测试数据
 
 修改：
 
-```python 
+```python
 AclNNInvocation/scripts/gen_data.py
 ```
 
-
 例如：
 
-```python 
+```python
 'case7': {
     'x': (torch.rand(6000, 6000) * 20 - 10).to(dtype),
     'beta': 1.0,
@@ -345,29 +414,26 @@ AclNNInvocation/scripts/gen_data.py
 }
 ```
 
-
-***
+---
 
 ## 编译并运行算子
 
 运行一键脚本：
 
-```bash 
+```bash
 ./build_and_run.sh
 ```
 
-
 该脚本会自动完成：
 
-```markdown 
+```markdown
 算子编译
 算子安装
 ACLNN调用
 算子测试
 ```
 
-
-***
+---
 
 # 项目亮点
 
@@ -375,31 +441,31 @@ ACLNN调用
 
 实现了从 **算子开发 → 编译 → 部署 → 调用 → 测试** 的完整流程。
 
-***
+---
 
 ### 2 AI Core 并行计算
 
 通过 Tiling 将输入数据划分到多个 AI Core 上并行执行，提高计算效率。
 
-***
+---
 
 ### 3 Tiling 数据切分策略
 
 根据 UB 大小动态计算单次 Tile 可处理的数据规模，实现高效的数据搬运策略。
 
-***
+---
 
 ### 4 Pipeline 流水线优化
 
 实现 CopyIn → Compute → CopyOut 三阶段流水线，提高 AI Core 利用率。
 
-***
+---
 
 ### 5 Double Buffer 优化
 
 通过双缓冲实现数据搬运与计算的重叠执行，从而提高算子整体吞吐率。
 
-***
+---
 
 # 学习收获
 

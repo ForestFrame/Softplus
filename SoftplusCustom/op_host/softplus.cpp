@@ -76,19 +76,19 @@ namespace optiling
         uint32_t smallCoreLoopNum = 0;
 
         // 大小核个数
-        bigCoreNum = totalBlockNum % coreNum;
+        bigCoreNum = totalBlockNum % coreNum;  // 总block数/核数，取余数
         smallCoreNum = coreNum - bigCoreNum;
 
         // 大小核处理总Block数
-        smallCoreBlockNum = totalBlockNum / coreNum;
+        smallCoreBlockNum = totalBlockNum / coreNum;  // 总blcok/核数，平均每种（大/小）核处理的总block数，向下取整即小核处理的block数
         bigCoreBlockNum = smallCoreBlockNum + 1;
 
         // 大小核处理总数据个数
-        bigCoreDataNum = bigCoreBlockNum * alignNum;
+        bigCoreDataNum = bigCoreBlockNum * alignNum;  // block数*block对齐数据个数，即大/小核处理的总数据个数
         smallCoreDataNum = smallCoreBlockNum * alignNum;
 
         // 大小核最后一次处理的Block数
-        bigCoreTailBlockNum = bigCoreBlockNum % tilingBlockNum;
+        bigCoreTailBlockNum = bigCoreBlockNum % tilingBlockNum;  // 大核处理总block数%单核单次tiling可处理的block数，即大核处理处理的尾块数
         smallCoreTailBlockNum = smallCoreBlockNum % tilingBlockNum;
 
         // 大小核最后一次处理的数据个数
@@ -96,7 +96,7 @@ namespace optiling
         smallCoreTailDataNum = smallCoreTailBlockNum * alignNum;
 
         // 大小核常规批次搬运次数，最后一次的搬运另算
-        bigCoreLoopNum = bigCoreBlockNum / tilingBlockNum;
+        bigCoreLoopNum = bigCoreBlockNum / tilingBlockNum;  // 大核处理总block数/单核单次tiling可处理的block数，向下取整即标准搬运次数，不包括尾块那一次
         smallCoreLoopNum = smallCoreBlockNum / tilingBlockNum;
 
         // printf("Total data num: %d.\n", totalDataNum);

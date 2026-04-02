@@ -25,7 +25,7 @@ public:
                                 float32_t threshold)
     {
         int64_t coreIndex = AscendC::GetBlockIdx();
-        uint32_t globalBufferIndex = bigCoreDataNum * coreIndex; // 地址偏移，具体怎么算的其实我不是很清楚，从网课中截出来的
+        uint32_t globalBufferIndex = bigCoreDataNum * coreIndex;  // 大核的数据地址偏移
 
         this->tilingDataNum = tilingDataNum;
 
@@ -40,13 +40,13 @@ public:
             this->loopNum = smallCoreLoopNum;
             this->coreDataNum = smallCoreDataNum;
             this->tailDataNum = smallCoreTailDataNum;
-            globalBufferIndex -= (bigCoreDataNum - smallCoreDataNum) * (coreIndex - bigCoreNum);
+            globalBufferIndex -= (bigCoreDataNum - smallCoreDataNum) * (coreIndex - bigCoreNum);  // 小核的数据地址偏移，每个大核比小核多出来的数据*当前是第几个小核
         }
 
         this->beta = beta;
         this->threshold = threshold;
 
-        xGm.SetGlobalBuffer((__gm__ DTYPE_X *)x + globalBufferIndex, this->coreDataNum);
+        xGm.SetGlobalBuffer((__gm__ DTYPE_X *)x + globalBufferIndex, this->coreDataNum);  // 计算每个核的第0轮数据处理的基础地址偏移
         yGm.SetGlobalBuffer((__gm__ DTYPE_Y *)y + globalBufferIndex, this->coreDataNum);
         pipe.InitBuffer(inQueueX, BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_X));
         pipe.InitBuffer(outQueueY, BUFFER_NUM, this->tilingDataNum * sizeof(DTYPE_Y));
@@ -73,7 +73,7 @@ private:
     __aicore__ inline void CopyIn(int32_t progress, uint32_t dataNum)
     {
         AscendC::LocalTensor<DTYPE_X> xLocal = inQueueX.AllocTensor<DTYPE_X>();
-        AscendC::DataCopy(xLocal, xGm[progress * this->tilingDataNum], dataNum);
+        AscendC::DataCopy(xLocal, xGm[progress * this->tilingDataNum], dataNum);  // 
         inQueueX.EnQue(xLocal);
     }
 
