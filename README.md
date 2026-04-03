@@ -514,8 +514,8 @@ $$
 
 官方测试脚本 `AclNNInvocation/scripts/test_op.py` 的校验逻辑并非严格逐元素匹配，而是采用带误差容忍的方式：
 
-- float32 类型使用 rtol = 1e-4、atol = 1e-4
-- 低精度类型使用 rtol = 1e-3、atol = 1e-3
+- `float32` 类型使用 `rtol = 1e-4`、`atol = 1e-4`
+- 低精度类型使用 `rtol = 1e-3`、`atol = 1e-3`
 - 除了允许单点误差外，还允许一定比例的数据点不满足误差条件
 
 核心判断逻辑如下：
@@ -531,13 +531,13 @@ if real_result.numel() * rtol < err_num:
 #### 总结
 
 - 原始公式适合功能验证和初期实现，但缺乏泛化能力
-- 没有对 threshold 分段处理的版本，在输入范围扩大或边界条件变化时容易出错
+- 没有对 `threshold` 分段处理的版本，在输入范围扩大或边界条件变化时容易出错
 - 比赛中未获奖的主要原因正是泛化性不足，而不仅仅是“样例通过与否”
 
 ### 数值稳定公式
 
 $$
-Softplus(x)=\frac{1}{\beta}\left\{ max(\beta x,0)+log(1+e^{-\left| \beta x \right|}) \right\}
+Softplus(x) = \frac{1}{\beta} \left\{ \max(\beta x, 0) + \log\big(1 + e^{-|\beta x|}\big) \right\}
 $$
 
 ### 分段函数形式
@@ -556,30 +556,28 @@ $$
 在 kernel 端实现分段函数时，逐元素使用 `if` 判断效率非常低。为此，我们采用 `compare + select` 的机制，将分段逻辑并行化：
 
 1. `Compare`
-    使用 `AscendC::CompareScalar` 对输入向量与阈值 `threshold` 并行比较，生成布尔掩码 `mask`：
+   使用 `AscendC::CompareScalar` 对输入向量与阈值 `threshold` 并行比较，生成布尔掩码 `mask`：
 
-    ```c++
-    AscendC::CompareScalar(mask, temp2, threshold, AscendC::CMPMODE::GT, dataNum);
-    ```
+   ```c++
+   AscendC::CompareScalar(mask, temp2, threshold, AscendC::CMPMODE::GT, dataNum);
+   ```
 
-    其中 `mask[i]` 为 `true` 表示该元素大于阈值，应选取对应分段的输出。
-
+   其中 `mask[i]` 为 `true` 表示该元素大于阈值，应选取对应分段的输出。
 2. 计算各分段函数值
-    对所有元素并行计算 Softplus 的公式部分：
+   对所有元素并行计算 Softplus 的公式部分：
 
-    ```c++
-    AscendC::Exp(temp2, temp2, dataNum);                 // e^(beta*x)
-    AscendC::Adds(temp2, temp2, scalar, dataNum);        // 1 + e^(beta*x)
-    AscendC::Ln(temp2, temp2, dataNum);                  // log(1 + e^(beta*x))
-    AscendC::Muls(temp2, temp2, 1.0f / beta, dataNum);   // (1/beta) * log(1 + e^(beta*x))
-    ```
-
+   ```c++
+   AscendC::Exp(temp2, temp2, dataNum);                 // e^(beta*x)
+   AscendC::Adds(temp2, temp2, scalar, dataNum);        // 1 + e^(beta*x)
+   AscendC::Ln(temp2, temp2, dataNum);                  // log(1 + e^(beta*x))
+   AscendC::Muls(temp2, temp2, 1.0f / beta, dataNum);   // (1/beta) * log(1 + e^(beta*x))
+   ```
 3. Select
-    根据掩码 `mask` 选择对应分段输出，完成分段逻辑：
+   根据掩码 `mask` 选择对应分段输出，完成分段逻辑：
 
-    ```c++
-    AscendC::Select(temp1, mask, temp1, temp2, AscendC::SELMODE::VSEL_TENSOR_TENSOR_MODE, dataNum);
-    ```
+   ```c++
+   AscendC::Select(temp1, mask, temp1, temp2, AscendC::SELMODE::VSEL_TENSOR_TENSOR_MODE, dataNum);
+   ```
 
    - `temp1` 中存放大于阈值的原始值
    - `temp2` 中存放公式计算的 Softplus 值
